@@ -2,11 +2,12 @@
 
 window.onload = () => {
     let canvas: HTMLCanvasElement = <HTMLCanvasElement>document.getElementById("canvas");
-    let world: World = new World(canvas.getContext("2d"));
-    world.add(new Tree(new Vector2(40, 40)));
-    world.add(new Tree(new Vector2(40, 30)));
-    world.add(new Tree(new Vector2(30, 40)));
-    world.add(new Tree(new Vector2(30, 30)));
-    world.add(new Animal(new Vector2(31, 31), Math.PI / 3));
+    let world: World = new World(canvas.getContext("2d"), 5);
+    world.add(new Animal(Vector2.fromCartesian(31, 31), Math.PI / 2));
+    world.add(new Tree(Vector2.fromCartesian(40, 40)));
+    world.add(new Tree(Vector2.fromCartesian(40, 30)));
+    world.add(new Tree(Vector2.fromCartesian(30, 40)));
+    world.add(new Tree(Vector2.fromCartesian(30, 30)));
+
     world.start();
 }

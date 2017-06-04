@@ -1,7 +1,7 @@
 ﻿import { ListNode } from "./List"
 
 export class Vector2 {
-    constructor(public x: number, public y: number) { };
+    private constructor(public x: number, public y: number) { };
     add(p: Vector2): Vector2 {
         return new Vector2(this.x + p.x, this.y + p.y);
     }
@@ -17,10 +17,17 @@ export class Vector2 {
     rotate(theta: number): Vector2 {
         return new Vector2(this.r * Math.cos(this.theta + theta), this.r * Math.sin(this.theta + theta));
     }
+    static fromPolar(r: number, theta: number): Vector2 {
+        return new Vector2(Math.cos(theta) * r, Math.sin(theta) * r);
+    }
+    static fromCartesian(x: number, y: number): Vector2 {
+        return new Vector2(x, y);
+    }
+    static readonly unitVector: Vector2 = new Vector2(1, 1);
 }
 
 interface Drawable {
-    draw(ctx: CanvasRenderingContext2D): void;
+    draw(ctx: CanvasRenderingContext2D, scale: number): void;
 }
 
 interface Updatable {
@@ -29,42 +36,65 @@ interface Updatable {
 
 class Circle implements Drawable {
     angle: number = 0;
-    constructor(public position: Vector2 = new Vector2(0, 0), public radius?: number, public color?: string) { };
-    draw(ctx: CanvasRenderingContext2D): void {
+    constructor(public position: Vector2 = Vector2.fromCartesian(0, 0),
+        public radius?: number, public color?: string) { };
+
+    draw(ctx: CanvasRenderingContext2D, scale: number = 1): void {
         ctx.beginPath();
         ctx.fillStyle = this.color;
-        ctx.arc(this.position.x, this.position.y, this.radius, 0, Math.PI * 2);
+        ctx.arc(
+            this.position.x * scale,
+            this.position.y * scale,
+            this.radius * scale, 0, Math.PI * 2);
         ctx.fill();
     }
 }
 
-export class Tree extends Circle {
-    color = "#00CC00"
+export class Tree implements Drawable {
+    constructor(public position: Vector2, public angle: number = 0) {
+        this.body = new Circle(position, Tree.radius, "#00CC00");
+    }
+    body: Circle;
     energy: number = 1;
-    radius: number = 3;
+    static readonly radius: number = 1;
+
+    draw(ctx: CanvasRenderingContext2D, scale: number = 1): void {
+        this.body.draw(ctx, scale);
+    }
 }
 
 export class Animal implements Updatable, Drawable {
     constructor(public position: Vector2, public angle: number = 0) {
-        this.eyel = new Circle(position.add(this.eyeShift1.rotate(angle)), 2, "#000000");
-        this.eye2 = new Circle(position.add(this.eyeShift2.rotate(angle)), 2, "#000000");
-        this.body = new Circle(position, 10, "#FF0000");
+        this.eye1 = new Circle(position.add(this.eyeShift1.rotate(angle)), Animal.eyeRadius, "#000000");
+        this.eye2 = new Circle(position.add(this.eyeShift2.rotate(angle)), Animal.eyeRadius, "#000000");
+        this.body = new Circle(position, Animal.bodyRadius, "#FF0000");
     }
+    private static readonly eyeRadius: number = 1;
+    private static readonly bodyRadius: number = 4;
+    private static readonly fieldOfViewAngle: number = Math.PI / 2;
+    private static readonly fieldOfViewR: number = 30;
+    private static readonly fieldOfViewSegments = 12;
+    private static readonly shouldDrawFieldOfView: boolean = true;
 
-    private eyeShift1: Vector2 = new Vector2(8, 0).rotate(Math.PI / 5);
-    private eyeShift2: Vector2 = new Vector2(8, 0).rotate(-Math.PI / 5);
+    private eyeShift1: Vector2 =
+        Vector2.fromCartesian(Animal.bodyRadius * 0.8, 0).rotate(Math.PI / 5);
+    private eyeShift2: Vector2 =
+        Vector2.fromCartesian(Animal.bodyRadius * 0.8, 0).rotate(- Math.PI / 5);
 
-    eyel: Circle;
-    eye2: Circle;
-    body: Circle;
+    private eye1: Circle;
+    private eye2: Circle;
+    private body: Circle;
 
     speed: number = 0;
-    angleSpeed: number = 1/10;
+    angleSpeed: number = 0;
 
     private energy: number = 1;
 
     step(t: number) {
-        this.position = this.position.add(new Vector2(this.speed * Math.cos(this.angle), this.speed * Math.sin(this.angle)));
+        this.position = this.position.add(
+            Vector2.fromCartesian(
+                this.speed * Math.cos(this.angle),
+                this.speed * Math.sin(this.angle)));
         this.angle = (this.angle + this.angleSpeed * t) % (Math.PI * 2);
         this.energy -= (this.angleSpeed + this.speed) * t;
 
@@ -73,14 +103,37 @@ export class Animal implements Updatable, Drawable {
 
     private updateElements(): void {
         this.body.position = this.position;
-        this.eyel.position = this.position.add(this.eyeShift1.rotate(this.angle));
+        this.eye1.position = this.position.add(this.eyeShift1.rotate(this.angle));
         this.eye2.position = this.position.add(this.eyeShift2.rotate(this.angle));
     }
 
-    draw(ctx: CanvasRenderingContext2D): void {
-        this.body.draw(ctx);
-        this.eyel.draw(ctx);
-        this.eye2.draw(ctx);
+    draw(ctx: CanvasRenderingContext2D, scale: number = 1): void {
+        this.body.draw(ctx, scale);
+        this.eye1.draw(ctx, scale);
+        this.eye2.draw(ctx, scale);
+        if (Animal.shouldDrawFieldOfView) {
+            this.drawFieldOfVied(ctx, this.eye1.position, scale);
+            this.drawFieldOfVied(ctx, this.eye2.position, scale);
+        }
+    }
+
+    private drawFieldOfVied(ctx: CanvasRenderingContext2D, position: Vector2, scale: number = 1) {
+        ctx.beginPath();
+        ctx.arc(
+            position.x * scale,
+            position.y * scale,
+            Animal.fieldOfViewR * scale,
+            this.angle - Animal.fieldOfViewAngle / 2,
+            this.angle + Animal.fieldOfViewAngle / 2);
+        for (let i = 0; i <= Animal.fieldOfViewSegments; i++) {
+            ctx.moveTo(position.x * scale, position.y * scale);
+            let d: Vector2 = Vector2.fromPolar(
+                Animal.fieldOfViewR,
+                this.angle - Animal.fieldOfViewAngle / 2 +
+                    Animal.fieldOfViewAngle / Animal.fieldOfViewSegments * i).add(position);
+            ctx.lineTo(d.x * scale, d.y * scale);
+        }
+        ctx.stroke();
     }
 }
 
@@ -109,7 +162,7 @@ export class World {
         }
     }
 
-    constructor(public context: CanvasRenderingContext2D) {
+    constructor(public context: CanvasRenderingContext2D, public scale: number = 1) {
     }
 
     private lastTimeReturned: number;
@@ -138,7 +191,7 @@ export class World {
             u.data.step(t/100);
         }
         for (let d: ListNode<Drawable> = this.drawables; d != null; d = d.next) {
-            d.data.draw(this.context);
+            d.data.draw(this.context, this.scale);
         }
     }
 
