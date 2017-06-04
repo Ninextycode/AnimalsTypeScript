@@ -1,0 +1,9 @@
+{
+  "name": "evolution",
+  "version": "0.0.0",
+  "description": "Evolution",
+  "main": "app.js",
+  "author": {
+    "name": "maxim"
+  }
+}
