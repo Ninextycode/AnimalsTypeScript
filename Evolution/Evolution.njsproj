@@ -37,7 +37,6 @@
       <SubType>Code</SubType>
     </Content>
     <Content Include="package.json" />
-    <Content Include="README.md" />
     <TypeScriptCompile Include="Entities.ts" />
     <TypeScriptCompile Include="List.ts" />
     <TypeScriptCompile Include="Main.ts" />

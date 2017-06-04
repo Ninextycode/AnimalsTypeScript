@@ -6,7 +6,7 @@ export class Vector2 {
         return new Vector2(this.x + p.x, this.y + p.y);
     }
     scale(a: number): Vector2 {
-        return new Vector2(this.x * a, this.y * 2);
+        return new Vector2(this.x * a, this.y * a);
     }
     get r(): number {
         return Math.sqrt(this.x ** 2 + this.y ** 2);
@@ -65,24 +65,29 @@ export class Tree implements Drawable {
 
 export class Animal implements Updatable, Drawable {
     constructor(public position: Vector2, public angle: number = 0) {
-        this.eye1 = new Circle(position.add(this.eyeShift1.rotate(angle)), Animal.eyeRadius, "#000000");
-        this.eye2 = new Circle(position.add(this.eyeShift2.rotate(angle)), Animal.eyeRadius, "#000000");
+        this.eye0 = new Circle(position.add(this.eyeShift1.rotate(angle)), Animal.eyeRadius, "#000000");
+        this.eye1 = new Circle(position.add(this.eyeShift2.rotate(angle)), Animal.eyeRadius, "#000000");
         this.body = new Circle(position, Animal.bodyRadius, "#FF0000");
+
+        this.resetObservedTrees();
     }
     private static readonly eyeRadius: number = 1;
     private static readonly bodyRadius: number = 4;
-    private static readonly fieldOfViewAngle: number = Math.PI / 2;
+    private static readonly fieldOfViewAngle: number = Math.PI/2;
     private static readonly fieldOfViewR: number = 30;
-    private static readonly fieldOfViewSegments = 12;
+    private static readonly fieldOfViewSegments = 3;
     private static readonly shouldDrawFieldOfView: boolean = true;
 
-    private eyeShift1: Vector2 =
-        Vector2.fromCartesian(Animal.bodyRadius * 0.8, 0).rotate(Math.PI / 5);
-    private eyeShift2: Vector2 =
-        Vector2.fromCartesian(Animal.bodyRadius * 0.8, 0).rotate(- Math.PI / 5);
+    // observedTrees[n * numberOfSegments + i] = how many treesin the ith segment of nth eye's fielf of view
+    private observedTrees: number[] = new Array<number>(Animal.fieldOfViewSegments * 2);
 
+    private eyeShift1: Vector2 =
+        Vector2.fromCartesian(Animal.bodyRadius * 0.7, 0).rotate( Math.PI / 4);
+    private eyeShift2: Vector2 =
+        Vector2.fromCartesian(Animal.bodyRadius * 0.7, 0).rotate(- Math.PI / 4);
+
+    private eye0: Circle;
     private eye1: Circle;
-    private eye2: Circle;
     private body: Circle;
 
     speed: number = 0;
@@ -91,6 +96,8 @@ export class Animal implements Updatable, Drawable {
     private energy: number = 1;
 
     step(t: number) {
+        this.ajustVelocity();
+
         this.position = this.position.add(
             Vector2.fromCartesian(
                 this.speed * Math.cos(this.angle),
@@ -101,19 +108,35 @@ export class Animal implements Updatable, Drawable {
         this.updateElements();
     }
 
+    private ajustVelocity(): void {
+        console.log(this.observedTrees);
+        this.resetObservedTrees();
+    }
+
+    private resetObservedTrees(): void {
+        let i: number = 0;
+        let len: number = this.observedTrees.length;
+        while (i < this.observedTrees.length) this.observedTrees[i++] = 0;
+    }
+
     private updateElements(): void {
         this.body.position = this.position;
-        this.eye1.position = this.position.add(this.eyeShift1.rotate(this.angle));
-        this.eye2.position = this.position.add(this.eyeShift2.rotate(this.angle));
+        this.body.angle = this.angle;
+        this.eye0.position = this.position.add(this.eyeShift1.rotate(this.angle));
+        this.eye0.angle = this.angle;
+        this.eye1.position = this.position.add(this.eyeShift2.rotate(this.angle));
+        this.eye1.angle = this.angle;
     }
 
     draw(ctx: CanvasRenderingContext2D, scale: number = 1): void {
         this.body.draw(ctx, scale);
+        this.eye0.draw(ctx, scale);
         this.eye1.draw(ctx, scale);
-        this.eye2.draw(ctx, scale);
         if (Animal.shouldDrawFieldOfView) {
+            ctx.strokeStyle = "#C00000"
+            this.drawFieldOfVied(ctx, this.eye0.position, scale);
+            ctx.strokeStyle = "#0000C0"
             this.drawFieldOfVied(ctx, this.eye1.position, scale);
-            this.drawFieldOfVied(ctx, this.eye2.position, scale);
         }
     }
 
@@ -130,16 +153,51 @@ export class Animal implements Updatable, Drawable {
             let d: Vector2 = Vector2.fromPolar(
                 Animal.fieldOfViewR,
                 this.angle - Animal.fieldOfViewAngle / 2 +
-                    Animal.fieldOfViewAngle / Animal.fieldOfViewSegments * i).add(position);
-            ctx.lineTo(d.x * scale, d.y * scale);
+                Animal.fieldOfViewAngle / Animal.fieldOfViewSegments * i)
+                    .add(position)
+                    .scale(scale);
+            ctx.lineTo(d.x, d.y);
         }
         ctx.stroke();
+    }
+
+    tryToObserveTree(tree: Tree) {
+        let where: number[] = this.inWhichSectors(tree.position);
+        console.log(where);
+        if (!isNaN(where[0])) {
+            this.observedTrees[where[0]] += 1;
+        }
+        if (!isNaN(where[1])) {
+            this.observedTrees[Animal.fieldOfViewSegments + where[1]] += 1;
+        }
+    }
+
+    private inWhichSectors(point: Vector2): number[] {
+        return [
+            this.inWhichSector(this.eye0, point),
+            this.inWhichSector(this.eye1, point)
+        ]; 
+    }
+
+    private inWhichSector(eye: Circle, point: Vector2): number {
+        let relPos: Vector2 = point.add(eye.position.scale(-1)).rotate(
+            - eye.angle + Animal.fieldOfViewAngle / 2);
+        console.log(relPos);
+        if (relPos.r < Animal.fieldOfViewR &&
+            0 < relPos.theta &&
+            relPos.theta < Animal.fieldOfViewAngle) {
+            let segmentAngle: number = Animal.fieldOfViewAngle / Animal.fieldOfViewSegments;
+            return Math.floor((relPos.theta) / segmentAngle);
+        }
+        return NaN;
     }
 }
 
 export class World {
     private drawables: ListNode<Drawable> =  null;
     private updatables: ListNode<Updatable> = null;
+    private animals: ListNode<Animal> = null;
+    private trees: ListNode<Tree> = null;
 
     add(object: any): void {
         if ("draw" in object) {
@@ -158,6 +216,24 @@ export class World {
                 let t: ListNode<Updatable> = new ListNode(<Updatable>object);
                 this.updatables.addBefore(t);
                 this.updatables = t;
+            }
+        }
+        if (object instanceof Animal) {
+            if (this.animals == null) {
+                this.animals = new ListNode(<Animal>object);
+            } else {
+                let t: ListNode<Animal> = new ListNode(<Animal>object);
+                this.animals.addBefore(t);
+                this.animals = t;
+            }
+        }
+        if (object instanceof  Tree) {
+            if (this.trees == null) {
+                this.trees = new ListNode(<Tree>object);
+            } else {
+                let t: ListNode<Tree> = new ListNode(<Tree>object);
+                this.trees.addBefore(t);
+                this.trees = t;
             }
         }
     }
@@ -187,6 +263,7 @@ export class World {
 
     updateGivenStep(t: number): void {
         this.clear()
+        this.updateNatire();
         for (let u: ListNode<Updatable> = this.updatables; u != null; u = u.next) {
             u.data.step(t/100);
         }
@@ -195,6 +272,13 @@ export class World {
         }
     }
 
+    private updateNatire(): void {
+        for (let a: ListNode<Animal> = this.animals; a != null; a = a.next) {
+            for (let t: ListNode<Tree> = this.trees; t != null; t = t.next) {
+                a.data.tryToObserveTree(t.data);
+            }
+        }
+    }
     private clear(): void {
         this.context.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height);
     }
