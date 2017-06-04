@@ -90,17 +90,21 @@ export class World {
 
     add(object: any): void {
         if ("draw" in object) {
-            if (this.drawables != null) {
+            if (this.drawables == null) {
                 this.drawables = new ListNode(<Drawable>object);
             } else {
-                this.drawables.addBefore(new ListNode(<Drawable>object));
+                let t: ListNode<Drawable> = new ListNode(<Drawable>object);
+                this.drawables.addBefore(t);
+                this.drawables = t;
             }
         }
         if ("step" in object) {
-            if (this.drawables != null) {
+            if (this.updatables == null) {
                 this.updatables = new ListNode(<Updatable>object);
             } else {
-                this.updatables.addBefore(new ListNode(<Updatable>object));
+                let t: ListNode<Updatable> = new ListNode(<Updatable>object);
+                this.updatables.addBefore(t);
+                this.updatables = t;
             }
         }
     }
@@ -130,7 +134,6 @@ export class World {
 
     updateGivenStep(t: number): void {
         this.clear()
-
         for (let u: ListNode<Updatable> = this.updatables; u != null; u = u.next) {
             u.data.step(t/100);
         }

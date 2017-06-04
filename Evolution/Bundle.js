@@ -1,3 +1,4 @@
+(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
@@ -159,4 +160,80 @@ var World = (function () {
     return World;
 }());
 exports.World = World;
-//# sourceMappingURL=Entities.js.map
+
+},{"./List":2}],2:[function(require,module,exports){
+"use strict";
+var ListNode = (function () {
+    function ListNode(data) {
+        this.data = data;
+        this.previous = null;
+        this.next = null;
+    }
+    ListNode.prototype.addBefore = function (n) {
+        n.previous = this.previous;
+        n.next = this;
+        if (this.previous != null) {
+            this.previous.next = n;
+        }
+        this.previous = n;
+    };
+    ListNode.prototype.addAfter = function (n) {
+        n.next = this.next;
+        n.previous = this;
+        if (this.next != null) {
+            this.next.previous = n;
+        }
+        this.next = n;
+    };
+    ListNode.prototype.remove = function (returnPrevious) {
+        if (returnPrevious === void 0) { returnPrevious = false; }
+        if (this.next != null) {
+            this.next.previous = this.previous;
+        }
+        if (this.previous != null) {
+            this.previous.next = this.next;
+        }
+        var n = returnPrevious ? this.previous : this.next;
+        this.next = null;
+        this.previous = null;
+        return n;
+    };
+    ListNode.prototype.toStringForwards = function () {
+        var node = this;
+        var s = "";
+        while (node != null) {
+            s += "(" + node.data + ")";
+            s += "->";
+            node = node.next;
+        }
+        return s;
+    };
+    ListNode.prototype.toStringBackwatds = function () {
+        var node = this;
+        var s = "";
+        while (node != null) {
+            s = "(" + node.data + ")" + s;
+            s = "<-" + s;
+            node = node.previous;
+        }
+        return s;
+    };
+    return ListNode;
+}());
+exports.ListNode = ListNode;
+
+},{}],3:[function(require,module,exports){
+"use strict";
+var Entities_1 = require("./Entities");
+window.onload = function () {
+    var canvas = document.getElementById("canvas");
+    var world = new Entities_1.World(canvas.getContext("2d"));
+    world.add(new Entities_1.Tree(new Entities_1.Vector2(40, 40)));
+    world.add(new Entities_1.Tree(new Entities_1.Vector2(40, 30)));
+    world.add(new Entities_1.Tree(new Entities_1.Vector2(30, 40)));
+    world.add(new Entities_1.Tree(new Entities_1.Vector2(30, 30)));
+    world.add(new Entities_1.Animal(new Entities_1.Vector2(31, 31), Math.PI / 3));
+    world.start();
+};
+
+},{"./Entities":1}]},{},[3]);

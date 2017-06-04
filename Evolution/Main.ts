@@ -8,6 +8,5 @@ window.onload = () => {
     world.add(new Tree(new Vector2(30, 40)));
     world.add(new Tree(new Vector2(30, 30)));
     world.add(new Animal(new Vector2(31, 31), Math.PI / 3));
-    console.log("a");
     world.start();
 }

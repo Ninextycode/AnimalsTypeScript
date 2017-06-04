@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "noImplicitAny": false,
-    "module": "umd",
+    "module": "commonjs",
     "noEmitOnError": true,
     "removeComments": false,
     "sourceMap": true,
