@@ -31,10 +31,21 @@
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
   <ItemGroup>
+    <Content Include="tsconfig.json">
+      <SubType>Code</SubType>
+    </Content>
     <TypeScriptCompile Include="app.ts" />
     <Content Include="package.json" />
     <Content Include="README.md" />
+    <TypeScriptCompile Include="Entities.ts" />
+    <TypeScriptCompile Include="List.ts" />
+    <TypeScriptCompile Include="Main.ts" />
+    <TypeScriptCompile Include="Net.ts" />
     <TypeScriptCompile Include="Scripts\typings\node\node.d.ts" />
+    <TypeScriptCompile Include="UnitTests.ts">
+      <SubType>Code</SubType>
+      <TestFramework>ExportRunner</TestFramework>
+    </TypeScriptCompile>
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Scripts\" />
