@@ -1,4 +1,5 @@
 ﻿import { ListNode } from "./List"
+import { Net } from "./Net"
 
 export class Vector2 {
     private constructor(public x: number, public y: number) { };
@@ -31,6 +32,7 @@ interface Drawable {
 }
 
 interface Updatable {
+    position: Vector2;
     step(t: number): void;
 }
 
@@ -64,12 +66,15 @@ export class Tree implements Drawable {
 }
 
 export class Animal implements Updatable, Drawable {
-    constructor(public position: Vector2, public angle: number = 0) {
+    constructor(public position: Vector2, public angle: number = 0,
+        private net: Net = Net.randomNet(Animal.layersLength)) {
         this.eye0 = new Circle(position.add(this.eyeShift1.rotate(angle)), Animal.eyeRadius, "#000000");
         this.eye1 = new Circle(position.add(this.eyeShift2.rotate(angle)), Animal.eyeRadius, "#000000");
         this.body = new Circle(position, Animal.bodyRadius, "#FF0000");
 
         this.resetObservedTrees();
+        for (let i = 0; i < Animal.loopedNeuronsNumber; i++)
+            this.loopedValues[i] = 0;
     }
     private static readonly eyeRadius: number = 1;
     private static readonly bodyRadius: number = 4;
@@ -77,40 +82,50 @@ export class Animal implements Updatable, Drawable {
     private static readonly fieldOfViewR: number = 30;
     private static readonly fieldOfViewSegments = 3;
     private static readonly shouldDrawFieldOfView: boolean = true;
+    private static loopedNeuronsNumber: number = 3;
+
+    private static layersLength: number[] = [
+        Animal.fieldOfViewSegments * 2 + Animal.loopedNeuronsNumber + 1 + 1, //1 for randomness, 1 for bias 
+        Animal.fieldOfViewSegments * 2 + Animal.loopedNeuronsNumber + 1,
+        Animal.fieldOfViewSegments * 2 + Animal.loopedNeuronsNumber + 1,
+        2 + Animal.loopedNeuronsNumber
+    ];
 
     // observedTrees[n * numberOfSegments + i] = how many treesin the ith segment of nth eye's fielf of view
     private observedTrees: number[] = new Array<number>(Animal.fieldOfViewSegments * 2);
-
+    private loopedValues: number[] =
+        new Array<number>(Animal.loopedNeuronsNumber);
     private eyeShift1: Vector2 =
         Vector2.fromCartesian(Animal.bodyRadius * 0.7, 0).rotate( Math.PI / 4);
     private eyeShift2: Vector2 =
         Vector2.fromCartesian(Animal.bodyRadius * 0.7, 0).rotate(- Math.PI / 4);
-
     private eye0: Circle;
     private eye1: Circle;
     private body: Circle;
+    private energy: number = 1;
 
     speed: number = 0;
-    angleSpeed: number = 0;
-
-    private energy: number = 1;
+    angularSpeed: number = 0;
 
     step(t: number) {
         this.ajustVelocity();
-
-        this.position = this.position.add(
-            Vector2.fromCartesian(
-                this.speed * Math.cos(this.angle),
-                this.speed * Math.sin(this.angle)));
-        this.angle = (this.angle + this.angleSpeed * t) % (Math.PI * 2);
-        this.energy -= (this.angleSpeed + this.speed) * t;
-
-        this.updateElements();
+        this.adjustPosition(t);
+        this.adjustEnergy(t);   
+        this.updateElementsPosition();
+        this.resetObservedTrees();
     }
 
     private ajustVelocity(): void {
-        console.log(this.observedTrees);
-        this.resetObservedTrees();
+        let input: number[] =
+            this.observedTrees.concat(this.loopedValues).concat([Math.random() * 2 - 1]);
+        let out: number[] = this.net.compute(input);
+        console.log("input: " + input);
+        console.log("out: " + out);
+        this.speed = out[0];
+        this.angularSpeed = out[1];
+        for (let i = 0; i < this.loopedValues.length; i++) {
+            this.loopedValues[i] = out[i + 2];
+        }
     }
 
     private resetObservedTrees(): void {
@@ -119,7 +134,19 @@ export class Animal implements Updatable, Drawable {
         while (i < this.observedTrees.length) this.observedTrees[i++] = 0;
     }
 
-    private updateElements(): void {
+    private adjustPosition(t: number): void {
+        this.position = this.position.add(
+            Vector2.fromCartesian(
+                this.speed * Math.cos(this.angle),
+                this.speed * Math.sin(this.angle)));
+        this.angle = (this.angle + this.angularSpeed * t) % (Math.PI * 2);
+    }
+
+    private adjustEnergy(t: number): void {
+        this.energy -= (this.angularSpeed + this.speed) * t;
+    }
+
+    private updateElementsPosition(): void {
         this.body.position = this.position;
         this.body.angle = this.angle;
         this.eye0.position = this.position.add(this.eyeShift1.rotate(this.angle));
@@ -163,7 +190,6 @@ export class Animal implements Updatable, Drawable {
 
     tryToObserveTree(tree: Tree) {
         let where: number[] = this.inWhichSectors(tree.position);
-        console.log(where);
         if (!isNaN(where[0])) {
             this.observedTrees[where[0]] += 1;
         }
@@ -182,7 +208,6 @@ export class Animal implements Updatable, Drawable {
     private inWhichSector(eye: Circle, point: Vector2): number {
         let relPos: Vector2 = point.add(eye.position.scale(-1)).rotate(
             - eye.angle + Animal.fieldOfViewAngle / 2);
-        console.log(relPos);
         if (relPos.r < Animal.fieldOfViewR &&
             0 < relPos.theta &&
             relPos.theta < Animal.fieldOfViewAngle) {
@@ -238,7 +263,11 @@ export class World {
         }
     }
 
-    constructor(public context: CanvasRenderingContext2D, public scale: number = 1) {
+    constructor(
+        public context: CanvasRenderingContext2D,
+        private width: number,
+        private height: number,
+        public scale: number = 1) {
     }
 
     private lastTimeReturned: number;
@@ -257,15 +286,26 @@ export class World {
     }
 
     update(): void{
-        this.updateGivenStep(this.timePassed());
+        this.updateGivenTimePassed(this.timePassed());
         window.requestAnimationFrame(() => { this.update() });
     }
 
-    updateGivenStep(t: number): void {
+    updateGivenTimePassed(time: number): void {
         this.clear()
         this.updateNatire();
         for (let u: ListNode<Updatable> = this.updatables; u != null; u = u.next) {
-            u.data.step(t/100);
+            u.data.step(time / 100);
+            if (u.data.position.x < 0) {
+                u.data.position.x = 0;
+            } else if(u.data.position.x > this.width) {
+                u.data.position.x = this.width;
+            } 
+
+            if (u.data.position.y < 0) {
+                u.data.position.y = 0;
+            } else if(u.data.position.y > this.height) {
+                u.data.position.y = this.height;
+            }
         }
         for (let d: ListNode<Drawable> = this.drawables; d != null; d = d.next) {
             d.data.draw(this.context, this.scale);

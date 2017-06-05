@@ -1,5 +1,5 @@
 ﻿export class Matrix { //column - row matrix, so [[a, b, ..]] is a column vector
-    constructor(public data: number[][]) { };
+    private constructor(public data: number[][]) { };
     multiply(m2: Matrix): Matrix {
         if (this.cols != m2.rows) {
             throw new Error(`this.cols!=m2.rows  ${this.cols}!=${m2.rows}`);
@@ -78,7 +78,22 @@ export class Net {
     private transforms: Matrix[];
     readonly layersSizes: number[];
 
-    constructor(layersSizes: number[], parameters: number[], //length of laters including bias(lasd layer has no bais unit)
+    static randomNet(layersSizes: number[]): Net {
+        let totalLength: number = 0;
+        let i = 0
+        for (; i < layersSizes.length - 2; i++) {
+            totalLength += layersSizes[i] * (layersSizes[i + 1] - 1);
+        }
+        totalLength += layersSizes[i] * (layersSizes[i + 1]);
+        let parameters: number[] = new Array<number>(totalLength);
+        for (let i: number = 0; i < totalLength; i++) {
+            parameters[i] = (Math.random() * 2 - 1) * 1 / Math.sqrt(layersSizes[0]);
+        }
+        return new Net(layersSizes, parameters);
+    }
+
+    //lengths of layers including bias(last layer has no bais unit)
+    constructor(layersSizes: number[], parameters: number[], 
         private sigmoid: ((x: number) => number) =
             (x: number) => {
                 return x / (1 + Math.abs(x))
@@ -88,14 +103,14 @@ export class Net {
         this.transforms = new Array<Matrix>(layersSizes.length - 1);
 
         let start: number = 0;
-        for (let i = 0; i < layersSizes.length - 2; i++) {
+        let i = 0
+        for (; i < layersSizes.length - 2; i++) {
             let length: number = (layersSizes[i + 1] - 1) * (layersSizes[i]);
             this.transforms[i] = Matrix.fromArray(parameters.slice(start, start + length), layersSizes[i + 1] - 1, layersSizes[i]); // -1 to exclude bias unit
             start += length;
         }
-
-        let length: number = layersSizes[layersSizes.length - 2] * layersSizes[layersSizes.length - 1];
-        this.transforms[layersSizes.length - 2] =
+        let length: number = layersSizes[i] * layersSizes[i + 1];
+        this.transforms[i] =
             Matrix.fromArray(parameters.slice(start, start + length),
                 layersSizes[layersSizes.length - 1], // no bias in output, so no -1
                 layersSizes[layersSizes.length - 2]) 
@@ -105,15 +120,24 @@ export class Net {
         if (input.length + 1 != this.layersSizes[0]) {
             throw new Error(`Invalid inpud, length recieved, expected`);
         }
-        let temp: Matrix = new Matrix([input]);
+        let temp: Matrix = Matrix.fromArray(input, input.length, 1);
         temp.apply(this.sigmoid);
         for (let m of this.transforms) {
             temp.data[0].push(1); //bias
-            console.log(m);
-            console.log(temp);
             temp = m.multiply(temp);
             temp.apply(this.sigmoid);
         }
         return temp.toArray();
+    }
+
+    toString(): string {
+        let s: string = "(\n";
+        let i = 0
+        for (; i < this.transforms.length - 1; i++) {
+            s += this.transforms[i];
+            s += "\n,\n";
+        }
+        s += this.transforms[i];
+        return s + ")";
     }
 }
