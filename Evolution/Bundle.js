@@ -548,35 +548,54 @@ exports.ListNode = ListNode;
 var Entities_1 = require("./Entities");
 var $ = require("jquery");
 window.onload = function () {
+    var canvas = document.getElementById("mainCanvas");
     var width = 400;
     var height = 400;
-    var scale = 1.5;
-    var netCanvasWidth = 400;
-    var netCanvasHeight = 400;
-    var netCanvasScale = 1.5;
+    var scale = Math.min(canvas.width / width, canvas.height / height);
     var maxTrees = 400;
     var initialPopulation = 20;
-    var canvas = document.getElementById("mainCanvas");
     var world = new Entities_1.World(canvas.getContext("2d"), width, height, maxTrees, initialPopulation, scale);
+    addSummary(world);
+    addFieldOfViewDrawControl();
+    addSpeedControl(world);
+    addMainCanvasListener(scale);
+    world.start();
+};
+function addSummary(world) {
     var summary = $("#summary");
     var writeSummary = function (w) {
         summary.text("Trees: " + w.numberOfTrees + ", Animals: " + w.numberOfAnimals);
     };
     world.addUpdateListener(writeSummary);
+}
+function addSpeedControl(world) {
     var speedSlider = $("#speed");
     var speedLabel = $("#speedLabel");
+    speedSlider.val(world.speed);
     speedLabel.text(speedSlider.val());
     speedSlider.on('input change', function (event) {
         speedLabel.text(speedSlider.val());
         world.speed = speedSlider.val();
     });
+}
+function addFieldOfViewDrawControl() {
     var drawFieldsOfView = $("#drawFieldsOfView");
     drawFieldsOfView.prop("checked", Entities_1.Animal.drawFieldOfView);
     drawFieldsOfView.click(function (event) {
         Entities_1.Animal.drawFieldOfView = drawFieldsOfView.prop('checked');
     });
-    world.start();
-};
+}
+function addMainCanvasListener(scale) {
+    var canvas = $("#mainCanvas");
+    var canoffset = canvas.offset();
+    canvas.click(function (event) {
+        var x = event.clientX + document.body.scrollLeft + document.documentElement.scrollLeft - Math.floor(canoffset.left);
+        x = x / scale;
+        var y = event.clientY + document.body.scrollTop + document.documentElement.scrollTop - Math.floor(canoffset.top) + 1;
+        y = y / scale;
+        alert(x + " " + y);
+    });
+}
 
 },{"./Entities":1,"jquery":5}],4:[function(require,module,exports){
 "use strict";
