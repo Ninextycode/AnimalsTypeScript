@@ -161,9 +161,9 @@ export class Animal implements Updatable, Drawable {
         this.angle = (this.angle + this.angularSpeed * t) % (Math.PI * 2);
     }
 
-    private static readonly energyLossPerUnitTime: number = 0.075;
+    private static readonly energyLossPerUnitTime: number = 0.1;
     private adjustEnergy(t: number): void {
-        this.energy -= ((Math.abs(this.angularSpeed) + Math.abs(this.speed)) * 5 + Animal.energyLossPerUnitTime) * t/1000;
+        this.energy -= ((Math.abs(this.angularSpeed) + Math.abs(this.speed))*0.04 + Animal.energyLossPerUnitTime) * t;
     }
 
     private updateElementsPosition(): void {
@@ -318,7 +318,7 @@ export class World {
         private width: number,
         private height: number,
         public minimalNumberOfTrees: number,
-        public minimalNumberOfAnimals: number,
+        public initialNumberOfAnimals: number,
         public scale: number = 1) {
     }
 
@@ -378,7 +378,7 @@ export class World {
     }
 
     private updateUpdatable(u: Updatable, time: number) {
-        u.step(time / 100);
+        u.step(time / 1000);
         if (u.position.x < 0) {
             u.position.x = 0;
         } else if (u.position.x > this.width) {
@@ -412,8 +412,10 @@ export class World {
         if (this._numberOfTrees < this.minimalNumberOfTrees) {
             this.addNewRandomTree();
         }
-        if (this._numberOfAnimals < this.minimalNumberOfAnimals) {
-            this.addNewRandomAnimal();
+        if (this._numberOfAnimals == 0) {
+            for (let i = 0; i < this.initialNumberOfAnimals; i++) {
+                this.addNewRandomAnimal();
+            }
         }
     }
 

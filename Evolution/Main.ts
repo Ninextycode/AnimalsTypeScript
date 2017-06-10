@@ -2,9 +2,9 @@
 import { Net, Matrix } from "./Net"
 import * as $ from "jquery"
 window.onload = () => {
-    let width: number = 300;
-    let height: number = 300;
-    let scale: number = 3;
+    let width: number = 400;
+    let height: number = 400;
+    let scale: number = 2;
 
     $("body").append(`<div><canvas id=\"canvas\" width=\"${width * scale}\"height=\"${height * scale}\"></canvas></div>`);
     $("body").append(`<div><button type=\"button\" id=\"animationButton\">Stop drawing</button></div>`);
@@ -16,7 +16,7 @@ window.onload = () => {
     };
 
     let canvas: HTMLCanvasElement = <HTMLCanvasElement>document.getElementById("canvas");
-    let world: World = new World(canvas.getContext("2d"), width, height, 50, 20, scale);
+    let world: World = new World(canvas.getContext("2d"), width, height, 100, 20, scale);
     world.addUpdateListener(writeSummary);
     $("#animationButton").click((event: JQueryEventObject) => {
         world.shouldDraw = !world.shouldDraw;
