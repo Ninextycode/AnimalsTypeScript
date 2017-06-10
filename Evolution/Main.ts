@@ -14,7 +14,7 @@ window.onload = () => {
 
     $("#app").append(`
         <div>
-            Speed: <input id="speed" type="range" step="0.1" min= "0" max="10" value="${world.speed}" style="width: 20%">
+            Speed: <input id="speed" type="range" step="0.1" min= "0" max="8" value="${world.speed}" style="width: 20%">
             <label id="speedLabel"/>
             </br>
             <input id="drawFieldsOfView" type="checkbox"> <label id="fieldOfVuewLabel">Draw fields of view</label>

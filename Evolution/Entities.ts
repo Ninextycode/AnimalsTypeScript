@@ -376,7 +376,6 @@ export class World {
         for (let listener of this.updateListeners) {
             listener(this);
         }
-
         window.requestAnimationFrame(() => { this.update() });
     }
 
@@ -503,6 +502,7 @@ export class World {
     }
 
     private clear(): void {
-        this.context.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height);
+        this.context.fillStyle = "#fceecf";
+        this.context.fillRect(0, 0, this.context.canvas.width, this.context.canvas.height);
     }
 }

@@ -474,7 +474,8 @@ var World = (function () {
         this._numberOfTrees--;
     };
     World.prototype.clear = function () {
-        this.context.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height);
+        this.context.fillStyle = "#fceecf";
+        this.context.fillRect(0, 0, this.context.canvas.width, this.context.canvas.height);
     };
     return World;
 }());
@@ -555,7 +556,7 @@ window.onload = function () {
     $("#app").append("<div><canvas id=\"canvas\" width=\"" + width * scale + "\"height=\"" + height * scale + "\"></canvas></div>");
     var canvas = document.getElementById("canvas");
     var world = new Entities_1.World(canvas.getContext("2d"), width, height, maxTrees, initialPopulation, scale);
-    $("#app").append("\n        <div>\n            Speed: <input id=\"speed\" type=\"range\" step=\"0.1\" min= \"0\" max=\"10\" value=\"" + world.speed + "\" style=\"width: 20%\">\n            <label id=\"speedLabel\"/>\n            </br>\n            <input id=\"drawFieldsOfView\" type=\"checkbox\"> <label id=\"fieldOfVuewLabel\">Draw fields of view</label>\n        <div>");
+    $("#app").append("\n        <div>\n            Speed: <input id=\"speed\" type=\"range\" step=\"0.1\" min= \"0\" max=\"8\" value=\"" + world.speed + "\" style=\"width: 20%\">\n            <label id=\"speedLabel\"/>\n            </br>\n            <input id=\"drawFieldsOfView\" type=\"checkbox\"> <label id=\"fieldOfVuewLabel\">Draw fields of view</label>\n        <div>");
     $("#app").append("<div id=\"summary\"></div>");
     var summary = $("#summary");
     var writeSummary = function (w) {
