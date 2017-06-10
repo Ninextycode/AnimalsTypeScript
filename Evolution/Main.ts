@@ -4,22 +4,17 @@ import * as $ from "jquery"
 window.onload = () => {
     let width: number = 400;
     let height: number = 400;
-    let maxTrees: number = 400;
-    let initialPopulation: number = 20;
     let scale: number = 1.5;
 
-    $("#app").append(`<div><canvas id="canvas" width=\"${width * scale}"height="${height * scale}"></canvas></div>`);
-    let canvas: HTMLCanvasElement = <HTMLCanvasElement>document.getElementById("canvas");
-    let world: World = new World(canvas.getContext("2d"), width, height, maxTrees, initialPopulation, scale);
+    let netCanvasWidth: number = 400;
+    let netCanvasHeight: number = 400;
+    let netCanvasScale: number = 1.5;
 
-    $("#app").append(`
-        <div>
-            Speed: <input id="speed" type="range" step="0.1" min= "0" max="8" value="${world.speed}" style="width: 20%">
-            <label id="speedLabel"/>
-            </br>
-            <input id="drawFieldsOfView" type="checkbox"> <label id="fieldOfVuewLabel">Draw fields of view</label>
-        <div>`);
-    $("#app").append(`<div id="summary"></div>`);
+    let maxTrees: number = 400;
+    let initialPopulation: number = 20;
+
+    let canvas: HTMLCanvasElement = <HTMLCanvasElement>document.getElementById("mainCanvas");
+    let world: World = new World(canvas.getContext("2d"), width, height, maxTrees, initialPopulation, scale);
 
     let summary: JQuery = $("#summary");
     let writeSummary = (w: World) => {

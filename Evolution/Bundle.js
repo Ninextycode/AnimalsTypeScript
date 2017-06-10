@@ -550,14 +550,14 @@ var $ = require("jquery");
 window.onload = function () {
     var width = 400;
     var height = 400;
+    var scale = 1.5;
+    var netCanvasWidth = 400;
+    var netCanvasHeight = 400;
+    var netCanvasScale = 1.5;
     var maxTrees = 400;
     var initialPopulation = 20;
-    var scale = 1.5;
-    $("#app").append("<div><canvas id=\"canvas\" width=\"" + width * scale + "\"height=\"" + height * scale + "\"></canvas></div>");
-    var canvas = document.getElementById("canvas");
+    var canvas = document.getElementById("mainCanvas");
     var world = new Entities_1.World(canvas.getContext("2d"), width, height, maxTrees, initialPopulation, scale);
-    $("#app").append("\n        <div>\n            Speed: <input id=\"speed\" type=\"range\" step=\"0.1\" min= \"0\" max=\"8\" value=\"" + world.speed + "\" style=\"width: 20%\">\n            <label id=\"speedLabel\"/>\n            </br>\n            <input id=\"drawFieldsOfView\" type=\"checkbox\"> <label id=\"fieldOfVuewLabel\">Draw fields of view</label>\n        <div>");
-    $("#app").append("<div id=\"summary\"></div>");
     var summary = $("#summary");
     var writeSummary = function (w) {
         summary.text("Trees: " + w.numberOfTrees + ", Animals: " + w.numberOfAnimals);
@@ -710,6 +710,9 @@ var Net = (function () {
         return new Net(layersSizes, parameters);
     };
     ;
+    Net.prototype.copy = function () {
+        return new Net(this.layersSizes, this.parameters, this.sigmoid);
+    };
     Net.prototype.compute = function (input) {
         if (input.length + 1 != this.layersSizes[0]) {
             throw new Error("Invalid inpud, length recieved, expected");

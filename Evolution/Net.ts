@@ -130,6 +130,10 @@ export class Net {
                 layersSizes[layersSizes.length - 2]) 
     };
 
+    copy(): Net {
+        return new Net(this.layersSizes, this.parameters, this.sigmoid);
+    }
+
     compute(input: number[]): number[] {
         if (input.length + 1 != this.layersSizes[0]) {
             throw new Error(`Invalid inpud, length recieved, expected`);
