@@ -31,7 +31,7 @@
     }
     constructor(public data: T) { }
 
-    toStringForwards(): string {
+    toStringForward(): string {
         let node: ListNode<T> = this;
         let s: string = "";
         while (node != null) {
@@ -42,7 +42,7 @@
         return s;
     }
 
-    toStringBackwatds(): string {
+    toStringBackward(): string {
         let node: ListNode<T> = this;
         let s: string = "";
         while (node != null) {

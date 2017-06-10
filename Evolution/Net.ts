@@ -53,7 +53,7 @@
 
     static fromArray(a: number[], rows: number, cols: number): Matrix {
         if (a.length != rows * cols) {
-            throw new Error(`Iinconsistent dimentions, input length=${a.length}, rows=${rows}, cols=${cols}`)
+            throw new Error(`Inconsistent dimentions, input length=${a.length}, rows=${rows}, cols=${cols}`)
         }
         let data: number[][] = new Array<number[]>(cols);
         for (let i = 0; i < cols; i++){
@@ -78,6 +78,20 @@ export class Net {
     private transforms: Matrix[];
     readonly layersSizes: number[];
 
+    private static defaultMutation(x: number): number {
+        return (Math.random() * 2 - 1) / (Math.abs(x)+1);
+    }
+
+    produceNetWithRandomCahanges(chanceOfMutation: number, mutation: (x: number) => number = Net.defaultMutation): Net {
+        let newPar: number[] = this.parameters.slice();
+        for (let i = 0; i < newPar.length; i++) {
+            if (Math.random() < chanceOfMutation) {
+                newPar[i] += mutation(newPar[i]);
+            }
+        }
+        return new Net(this.layersSizes, newPar);
+    }
+
     static randomNet(layersSizes: number[]): Net {
         let totalLength: number = 0;
         let i = 0
@@ -93,7 +107,7 @@ export class Net {
     }
 
     //lengths of layers including bias(last layer has no bais unit)
-    constructor(layersSizes: number[], parameters: number[], 
+    constructor(layersSizes: number[], public readonly parameters: number[], 
         private sigmoid: ((x: number) => number) =
             (x: number) => {
                 return x / (1 + Math.abs(x))
@@ -121,7 +135,7 @@ export class Net {
             throw new Error(`Invalid inpud, length recieved, expected`);
         }
         let temp: Matrix = Matrix.fromArray(input, input.length, 1);
-        temp.apply(this.sigmoid);
+
         for (let m of this.transforms) {
             temp.data[0].push(1); //bias
             temp = m.multiply(temp);

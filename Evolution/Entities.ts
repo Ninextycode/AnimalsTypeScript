@@ -25,6 +25,10 @@ export class Vector2 {
         return new Vector2(x, y);
     }
     static readonly unitVector: Vector2 = new Vector2(1, 1);
+
+    toString() {
+        return "( " + this.x + ", " + this.y + ")";
+    }
 }
 
 interface Drawable {
@@ -36,7 +40,7 @@ interface Updatable {
     step(t: number): void;
 }
 
-class Circle implements Drawable {
+export class Circle implements Drawable {
     angle: number = 0;
     constructor(public position: Vector2 = Vector2.fromCartesian(0, 0),
         public radius?: number, public color?: string) { };
@@ -50,43 +54,54 @@ class Circle implements Drawable {
             this.radius * scale, 0, Math.PI * 2);
         ctx.fill();
     }
+
+    isIntersecting(c: Circle): boolean {
+        return (this.position.scale(-1).add(c.position).r < c.radius + this.radius);
+    }
+
+    toString(): string {
+        return "Circle at " + this.position + " ,radius=" + this.radius;
+    }
 }
 
 export class Tree implements Drawable {
     constructor(public position: Vector2, public angle: number = 0) {
-        this.body = new Circle(position, Tree.radius, "#00CC00");
+        this._body = new Circle(position, Tree.radius, "#00CC00");
     }
-    body: Circle;
-    energy: number = 1;
+    _body: Circle;
+    get body(): Circle {
+        return this._body;
+    }
+    static readonly initialEnergy: number = 0.3;
+    energy: number = Animal.initialEnergy;
     static readonly radius: number = 1;
 
     draw(ctx: CanvasRenderingContext2D, scale: number = 1): void {
-        this.body.draw(ctx, scale);
+        this._body.draw(ctx, scale);
     }
 }
 
 export class Animal implements Updatable, Drawable {
-    constructor(public position: Vector2, public angle: number = 0,
-        private net: Net = Net.randomNet(Animal.layersLength)) {
+    constructor(public position: Vector2,
+        private net: Net, public angle: number = 0) {
         this.eye0 = new Circle(position.add(this.eyeShift1.rotate(angle)), Animal.eyeRadius, "#000000");
         this.eye1 = new Circle(position.add(this.eyeShift2.rotate(angle)), Animal.eyeRadius, "#000000");
-        this.body = new Circle(position, Animal.bodyRadius, "#FF0000");
+        this._body = new Circle(position, Animal.bodyRadius, "#FF0000");
 
         this.resetObservedTrees();
         for (let i = 0; i < Animal.loopedNeuronsNumber; i++)
             this.loopedValues[i] = 0;
     }
-    private static readonly eyeRadius: number = 1;
-    private static readonly bodyRadius: number = 4;
-    private static readonly fieldOfViewAngle: number = Math.PI/2;
-    private static readonly fieldOfViewR: number = 30;
-    private static readonly fieldOfViewSegments = 3;
+    private static readonly eyeRadius: number = 1/2;
+    private static readonly bodyRadius: number = 3;
+    private static readonly fieldOfViewAngle: number = Math.PI/4;
+    private static readonly fieldOfViewR: number = 70;
+    private static readonly fieldOfViewSegments = 4;
     private static readonly shouldDrawFieldOfView: boolean = true;
     private static loopedNeuronsNumber: number = 3;
 
-    private static layersLength: number[] = [
+    static readonly netLayersLength: number[] = [
         Animal.fieldOfViewSegments * 2 + Animal.loopedNeuronsNumber + 1 + 1, //1 for randomness, 1 for bias 
-        Animal.fieldOfViewSegments * 2 + Animal.loopedNeuronsNumber + 1,
         Animal.fieldOfViewSegments * 2 + Animal.loopedNeuronsNumber + 1,
         2 + Animal.loopedNeuronsNumber
     ];
@@ -96,16 +111,22 @@ export class Animal implements Updatable, Drawable {
     private loopedValues: number[] =
         new Array<number>(Animal.loopedNeuronsNumber);
     private eyeShift1: Vector2 =
-        Vector2.fromCartesian(Animal.bodyRadius * 0.7, 0).rotate( Math.PI / 4);
+        Vector2.fromCartesian(Animal.bodyRadius * 0.9, 0).rotate( Math.PI / 3);
     private eyeShift2: Vector2 =
-        Vector2.fromCartesian(Animal.bodyRadius * 0.7, 0).rotate(- Math.PI / 4);
+        Vector2.fromCartesian(Animal.bodyRadius * 0.9, 0).rotate(- Math.PI / 3);
     private eye0: Circle;
     private eye1: Circle;
-    private body: Circle;
-    private energy: number = 1;
+    private _body: Circle;
+
+    static readonly initialEnergy: number = 2;
+    energy: number = Animal.initialEnergy;
 
     speed: number = 0;
     angularSpeed: number = 0;
+
+    get body(): Circle {
+        return this._body;
+    }
 
     step(t: number) {
         this.ajustVelocity();
@@ -119,8 +140,6 @@ export class Animal implements Updatable, Drawable {
         let input: number[] =
             this.observedTrees.concat(this.loopedValues).concat([Math.random() * 2 - 1]);
         let out: number[] = this.net.compute(input);
-        console.log("input: " + input);
-        console.log("out: " + out);
         this.speed = out[0];
         this.angularSpeed = out[1];
         for (let i = 0; i < this.loopedValues.length; i++) {
@@ -142,13 +161,14 @@ export class Animal implements Updatable, Drawable {
         this.angle = (this.angle + this.angularSpeed * t) % (Math.PI * 2);
     }
 
+    private static readonly energyLossPerUnitTime: number = 0.075;
     private adjustEnergy(t: number): void {
-        this.energy -= (this.angularSpeed + this.speed) * t;
+        this.energy -= ((Math.abs(this.angularSpeed) + Math.abs(this.speed)) * 5 + Animal.energyLossPerUnitTime) * t/1000;
     }
 
     private updateElementsPosition(): void {
-        this.body.position = this.position;
-        this.body.angle = this.angle;
+        this._body.position = this.position;
+        this._body.angle = this.angle;
         this.eye0.position = this.position.add(this.eyeShift1.rotate(this.angle));
         this.eye0.angle = this.angle;
         this.eye1.position = this.position.add(this.eyeShift2.rotate(this.angle));
@@ -156,7 +176,7 @@ export class Animal implements Updatable, Drawable {
     }
 
     draw(ctx: CanvasRenderingContext2D, scale: number = 1): void {
-        this.body.draw(ctx, scale);
+        this._body.draw(ctx, scale);
         this.eye0.draw(ctx, scale);
         this.eye1.draw(ctx, scale);
         if (Animal.shouldDrawFieldOfView) {
@@ -216,6 +236,16 @@ export class Animal implements Updatable, Drawable {
         }
         return NaN;
     }
+
+    private static mutationRate = 0.1; 
+    giveAncestor(): Animal {
+        let angle: number = 2 * Math.PI * Math.random();
+        let p: Vector2 = this.position.add(Vector2.unitVector.scale(3 * Animal.bodyRadius).rotate(angle));
+        let ancestor: Animal = new Animal(p, this.net.produceNetWithRandomCahanges(Animal.mutationRate), angle);
+        this.energy = this.energy / 2;
+        ancestor.energy = this.energy;
+        return ancestor;
+    }
 }
 
 export class World {
@@ -224,26 +254,27 @@ export class World {
     private animals: ListNode<Animal> = null;
     private trees: ListNode<Tree> = null;
 
-    add(object: any): void {
-        if ("draw" in object) {
-            if (this.drawables == null) {
-                this.drawables = new ListNode(<Drawable>object);
-            } else {
-                let t: ListNode<Drawable> = new ListNode(<Drawable>object);
-                this.drawables.addBefore(t);
-                this.drawables = t;
-            }
-        }
-        if ("step" in object) {
-            if (this.updatables == null) {
-                this.updatables = new ListNode(<Updatable>object);
-            } else {
-                let t: ListNode<Updatable> = new ListNode(<Updatable>object);
-                this.updatables.addBefore(t);
-                this.updatables = t;
-            }
-        }
+    private updateListeners: ((w: World) => (void))[] = [];
+    addUpdateListener(listener: ((w: World) => (void))) {
+        this.updateListeners.push(listener);
+    }
+
+    shouldDraw: boolean = true;
+
+    private _numberOfAnimals: number = 0;
+    private _numberOfTrees: number = 0;
+
+    get numberOfTrees(): number {
+        return this._numberOfTrees;
+    }
+
+    get numberOfAnimals(): number {
+        return this._numberOfAnimals;
+    }
+
+    addObject(object: any): void {
         if (object instanceof Animal) {
+            this._numberOfAnimals++;
             if (this.animals == null) {
                 this.animals = new ListNode(<Animal>object);
             } else {
@@ -251,14 +282,33 @@ export class World {
                 this.animals.addBefore(t);
                 this.animals = t;
             }
-        }
-        if (object instanceof  Tree) {
+        } else if (object instanceof Tree) {
+            this._numberOfTrees++;
             if (this.trees == null) {
                 this.trees = new ListNode(<Tree>object);
             } else {
                 let t: ListNode<Tree> = new ListNode(<Tree>object);
                 this.trees.addBefore(t);
                 this.trees = t;
+            }
+        } else {
+            if ("draw" in object) {
+                if (this.drawables == null) {
+                    this.drawables = new ListNode(<Drawable>object);
+                } else {
+                    let t: ListNode<Drawable> = new ListNode(<Drawable>object);
+                    this.drawables.addBefore(t);
+                    this.drawables = t;
+                }
+            }
+            if ("step" in object) {
+                if (this.updatables == null) {
+                    this.updatables = new ListNode(<Updatable>object);
+                } else {
+                    let t: ListNode<Updatable> = new ListNode(<Updatable>object);
+                    this.updatables.addBefore(t);
+                    this.updatables = t;
+                }
             }
         }
     }
@@ -267,6 +317,8 @@ export class World {
         public context: CanvasRenderingContext2D,
         private width: number,
         private height: number,
+        public minimalNumberOfTrees: number,
+        public minimalNumberOfAnimals: number,
         public scale: number = 1) {
     }
 
@@ -278,7 +330,11 @@ export class World {
         }
         let passed: number = performance.now() - this.lastTimeReturned;
         this.lastTimeReturned = performance.now();
-        return passed;
+        if (this.shouldDraw) {
+            return passed;
+        } else {
+            return 100;
+        }
     }
 
     start(): void {
@@ -287,28 +343,52 @@ export class World {
 
     update(): void{
         this.updateGivenTimePassed(this.timePassed());
+        for (let listener of this.updateListeners) {
+            listener(this);
+        }
+
         window.requestAnimationFrame(() => { this.update() });
     }
 
     updateGivenTimePassed(time: number): void {
         this.clear()
         this.updateNatire();
-        for (let u: ListNode<Updatable> = this.updatables; u != null; u = u.next) {
-            u.data.step(time / 100);
-            if (u.data.position.x < 0) {
-                u.data.position.x = 0;
-            } else if(u.data.position.x > this.width) {
-                u.data.position.x = this.width;
-            } 
-
-            if (u.data.position.y < 0) {
-                u.data.position.y = 0;
-            } else if(u.data.position.y > this.height) {
-                u.data.position.y = this.height;
+        for (let a: ListNode<Animal> = this.animals; a != null; a = a.next) {
+            this.updateUpdatable(a.data, time);
+            if (this.shouldDraw) {
+                a.data.draw(this.context, this.scale);
             }
+        }
+
+        if (this.shouldDraw) {
+            for (let t: ListNode<Tree> = this.trees; t != null; t = t.next) {
+                t.data.draw(this.context, this.scale);
+            }
+            for (let d: ListNode<Drawable> = this.drawables; d != null; d = d.next) {
+                d.data.draw(this.context, this.scale);
+            }
+        }
+
+        for (let u: ListNode<Updatable> = this.updatables; u != null; u = u.next) {
+            this.updateUpdatable(u.data, time);
         }
         for (let d: ListNode<Drawable> = this.drawables; d != null; d = d.next) {
             d.data.draw(this.context, this.scale);
+        }
+    }
+
+    private updateUpdatable(u: Updatable, time: number) {
+        u.step(time / 100);
+        if (u.position.x < 0) {
+            u.position.x = 0;
+        } else if (u.position.x > this.width) {
+            u.position.x = this.width;
+        }
+
+        if (u.position.y < 0) {
+            u.position.y = 0;
+        } else if (u.position.y > this.height) {
+            u.position.y = this.height;
         }
     }
 
@@ -316,9 +396,56 @@ export class World {
         for (let a: ListNode<Animal> = this.animals; a != null; a = a.next) {
             for (let t: ListNode<Tree> = this.trees; t != null; t = t.next) {
                 a.data.tryToObserveTree(t.data);
+
+                if (a.data.body.isIntersecting(t.data.body)) {
+                    a.data.energy += t.data.energy;
+                    this.removeTreeNode(t);
+                }
+            }
+            if (a.data.energy < 0) {
+                this.removeAnimalNode(a);
+            }
+            if (a.data.energy > 2 * Animal.initialEnergy) {
+                this.addObject(a.data.giveAncestor());
             }
         }
+        if (this._numberOfTrees < this.minimalNumberOfTrees) {
+            this.addNewRandomTree();
+        }
+        if (this._numberOfAnimals < this.minimalNumberOfAnimals) {
+            this.addNewRandomAnimal();
+        }
     }
+
+    addNewRandomTree(): void {
+        this.addObject(new Tree(Vector2.fromCartesian(Math.random() * this.width, Math.random() * this.height)));
+    }
+
+    addNewRandomAnimal(): void {
+        this.addObject(new Animal(
+            Vector2.fromCartesian(Math.random() * this.width, Math.random() * this.height),
+            Net.randomNet(Animal.netLayersLength),
+            2 * Math.PI * Math.random()));
+    }
+
+    private removeAnimalNode(n: ListNode<Animal>): void {
+        if (n === this.animals) {
+            this.animals = n.remove();
+        } else {
+            n.remove();
+        }
+        this._numberOfAnimals--;
+    }
+
+    private removeTreeNode(n: ListNode<Tree>): void {
+        if (n === this.trees) {
+            this.trees = n.remove();
+        } else {
+            n.remove();
+        }
+        this._numberOfTrees--;
+    }
+
     private clear(): void {
         this.context.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height);
     }

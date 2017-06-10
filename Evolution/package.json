@@ -5,5 +5,8 @@
   "main": "app.js",
   "author": {
     "name": "maxim"
+  },
+  "devDependencies": {
+    "@types/jquery": "^2.0.46"
   }
 }
