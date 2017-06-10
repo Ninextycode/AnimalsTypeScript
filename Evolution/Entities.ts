@@ -31,11 +31,16 @@ export class Vector2 {
     }
 }
 
-interface Drawable {
+interface Positionable {
+    position: Vector2;
+}
+
+interface Drawable extends Positionable {
+    position: Vector2;
     draw(ctx: CanvasRenderingContext2D, scale: number): void;
 }
 
-interface Updatable {
+interface Updatable extends Positionable {
     position: Vector2;
     step(t: number): void;
 }
@@ -72,7 +77,7 @@ export class Tree implements Drawable {
     get body(): Circle {
         return this._body;
     }
-    static readonly initialEnergy: number = 0.3;
+    static readonly initialEnergy: number = 0.5;
     energy: number = Animal.initialEnergy;
     static readonly radius: number = 1;
 
@@ -95,15 +100,15 @@ export class Animal implements Updatable, Drawable {
     private static readonly eyeRadius: number = 1/2;
     private static readonly bodyRadius: number = 3;
     private static readonly fieldOfViewAngle: number = Math.PI/4;
-    private static readonly fieldOfViewR: number = 70;
+    private static readonly fieldOfViewR: number = 80;
     private static readonly fieldOfViewSegments = 4;
-    private static readonly shouldDrawFieldOfView: boolean = true;
-    private static loopedNeuronsNumber: number = 3;
+    static drawFieldOfView: boolean = false;
+    private static loopedNeuronsNumber: number = 2 + 2; // 2 for speed and angularSpeed
 
     static readonly netLayersLength: number[] = [
-        Animal.fieldOfViewSegments * 2 + Animal.loopedNeuronsNumber + 1 + 1, //1 for randomness, 1 for bias 
+        Animal.fieldOfViewSegments * 2 + Animal.loopedNeuronsNumber + 1 + 1, //1 for randomness, 1 for bias,
         Animal.fieldOfViewSegments * 2 + Animal.loopedNeuronsNumber + 1,
-        2 + Animal.loopedNeuronsNumber
+        Animal.loopedNeuronsNumber
     ];
 
     // observedTrees[n * numberOfSegments + i] = how many treesin the ith segment of nth eye's fielf of view
@@ -121,6 +126,8 @@ export class Animal implements Updatable, Drawable {
     static readonly initialEnergy: number = 2;
     energy: number = Animal.initialEnergy;
 
+    private static readonly speedScale = 0.05;
+    private static readonly angleSpeedScale = 0.005;
     speed: number = 0;
     angularSpeed: number = 0;
 
@@ -140,10 +147,10 @@ export class Animal implements Updatable, Drawable {
         let input: number[] =
             this.observedTrees.concat(this.loopedValues).concat([Math.random() * 2 - 1]);
         let out: number[] = this.net.compute(input);
-        this.speed = out[0];
-        this.angularSpeed = out[1];
+        this.speed = out[0] * Animal.speedScale;
+        this.angularSpeed = out[1] * Animal.angleSpeedScale;
         for (let i = 0; i < this.loopedValues.length; i++) {
-            this.loopedValues[i] = out[i + 2];
+            this.loopedValues[i] = out[i];
         }
     }
 
@@ -155,15 +162,15 @@ export class Animal implements Updatable, Drawable {
 
     private adjustPosition(t: number): void {
         this.position = this.position.add(
-            Vector2.fromCartesian(
-                this.speed * Math.cos(this.angle),
-                this.speed * Math.sin(this.angle)));
+            Vector2.fromPolar(this.speed, this.angle).scale(t));
         this.angle = (this.angle + this.angularSpeed * t) % (Math.PI * 2);
     }
 
-    private static readonly energyLossPerUnitTime: number = 0.1;
+    private static readonly energyLossPerUnitTime: number = 0.05 / 1000;
     private adjustEnergy(t: number): void {
-        this.energy -= ((Math.abs(this.angularSpeed) + Math.abs(this.speed))*0.04 + Animal.energyLossPerUnitTime) * t;
+        let spentOnRotation = Math.abs(this.angularSpeed) * 0.02 * t;
+        let spentOnSpeed = Math.abs(this.speed) * (this.speed > 0? 0.02 : 0.1) * t; //discourage negative speed
+        this.energy -= (spentOnSpeed + spentOnRotation + Animal.energyLossPerUnitTime * t) ;
     }
 
     private updateElementsPosition(): void {
@@ -179,7 +186,7 @@ export class Animal implements Updatable, Drawable {
         this._body.draw(ctx, scale);
         this.eye0.draw(ctx, scale);
         this.eye1.draw(ctx, scale);
-        if (Animal.shouldDrawFieldOfView) {
+        if (Animal.drawFieldOfView) {
             ctx.strokeStyle = "#C00000"
             this.drawFieldOfVied(ctx, this.eye0.position, scale);
             ctx.strokeStyle = "#0000C0"
@@ -237,13 +244,12 @@ export class Animal implements Updatable, Drawable {
         return NaN;
     }
 
-    private static mutationRate = 0.1; 
-    giveAncestor(): Animal {
+    private static mutationRate = 0.05;
+    giveAncestor(mutationRate: number = Animal.mutationRate): Animal {
         let angle: number = 2 * Math.PI * Math.random();
         let p: Vector2 = this.position.add(Vector2.unitVector.scale(3 * Animal.bodyRadius).rotate(angle));
-        let ancestor: Animal = new Animal(p, this.net.produceNetWithRandomCahanges(Animal.mutationRate), angle);
-        this.energy = this.energy / 2;
-        ancestor.energy = this.energy;
+        let ancestor: Animal = new Animal(p, this.net.produceNetWithRandomCahanges(mutationRate), angle);
+        this.energy = this.energy - ancestor.energy;
         return ancestor;
     }
 }
@@ -260,6 +266,7 @@ export class World {
     }
 
     shouldDraw: boolean = true;
+    speed: number = 1;
 
     private _numberOfAnimals: number = 0;
     private _numberOfTrees: number = 0;
@@ -313,13 +320,39 @@ export class World {
         }
     }
 
+    minNimberOfTrees: number = 1;
     constructor(
         public context: CanvasRenderingContext2D,
         private width: number,
         private height: number,
-        public minimalNumberOfTrees: number,
+        public maxNumberOfTrees: number,
         public initialNumberOfAnimals: number,
         public scale: number = 1) {
+
+        this.spawnAnimals();
+        this.spawnTrees();
+        this.minNimberOfTrees = maxNumberOfTrees / 6;
+    }
+
+    private spawnAnimals(): void {
+        for (let i = this.numberOfAnimals; i < this.initialNumberOfAnimals; i++) {
+            this.addNewRandomAnimal();
+        }
+    }
+
+    private spawnAnimalsFromParent(parent: Animal): void {
+        let numberToSpawn: number = this.initialNumberOfAnimals - this.numberOfAnimals;
+        for (let i = 0; i < numberToSpawn / 2; i++) {
+            let a: Animal = parent.giveAncestor(0.25);
+            a.position = Vector2.fromCartesian(this.width * Math.random(), this.height * Math.random());
+            this.addObject(a);
+        }
+        this.spawnAnimals();
+    }
+    private spawnTrees(): void {
+        for (let i = this.numberOfTrees; i < this.maxNumberOfTrees / 4; i++) {
+            this.addNewRandomTree();
+        }
     }
 
     private lastTimeReturned: number;
@@ -330,11 +363,7 @@ export class World {
         }
         let passed: number = performance.now() - this.lastTimeReturned;
         this.lastTimeReturned = performance.now();
-        if (this.shouldDraw) {
-            return passed;
-        } else {
-            return 100;
-        }
+        return passed * this.speed;    
     }
 
     start(): void {
@@ -342,7 +371,8 @@ export class World {
     }
 
     update(): void{
-        this.updateGivenTimePassed(this.timePassed());
+        let t: number = this.timePassed();
+        this.updateGivenTimePassed(t);
         for (let listener of this.updateListeners) {
             listener(this);
         }
@@ -352,7 +382,7 @@ export class World {
 
     updateGivenTimePassed(time: number): void {
         this.clear()
-        this.updateNatire();
+        this.updateNatire(time);
         for (let a: ListNode<Animal> = this.animals; a != null; a = a.next) {
             this.updateUpdatable(a.data, time);
             if (this.shouldDraw) {
@@ -378,21 +408,31 @@ export class World {
     }
 
     private updateUpdatable(u: Updatable, time: number) {
-        u.step(time / 1000);
-        if (u.position.x < 0) {
-            u.position.x = 0;
-        } else if (u.position.x > this.width) {
-            u.position.x = this.width;
+        u.step(time);
+        this.adjustPosition(u);
+    }
+
+    private adjustPosition(p: Positionable) {
+        if (p.position.x < 0) {
+            p.position.x = 0;
+        } else if (p.position.x > this.width) {
+            p.position.x = this.width;
         }
 
-        if (u.position.y < 0) {
-            u.position.y = 0;
-        } else if (u.position.y > this.height) {
-            u.position.y = this.height;
+        if (p.position.y < 0) {
+            p.position.y = 0;
+        } else if (p.position.y > this.height) {
+            p.position.y = this.height;
         }
     }
 
-    private updateNatire(): void {
+
+    private updateNatire(time: number): void {
+        this.updateOnCollisions();
+        this.spawnAdditionalEntities(time);
+    }
+
+    private updateOnCollisions() {
         for (let a: ListNode<Animal> = this.animals; a != null; a = a.next) {
             for (let t: ListNode<Tree> = this.trees; t != null; t = t.next) {
                 a.data.tryToObserveTree(t.data);
@@ -405,16 +445,30 @@ export class World {
             if (a.data.energy < 0) {
                 this.removeAnimalNode(a);
             }
-            if (a.data.energy > 2 * Animal.initialEnergy) {
+            if (a.data.energy > 4 * Animal.initialEnergy) {
                 this.addObject(a.data.giveAncestor());
             }
         }
-        if (this._numberOfTrees < this.minimalNumberOfTrees) {
+    }
+
+    private static treesGrowthRate: number = 0.05;
+
+    private spawnAdditionalEntities(timePassed: number) {
+        if (this.numberOfAnimals == 1) {
+            this.spawnAnimalsFromParent(this.animals.data);
+        } else if (this.numberOfAnimals == 0) {
+            this.spawnAnimals();
+        }
+        if (this.numberOfTrees < this.minNimberOfTrees) {
             this.addNewRandomTree();
         }
-        if (this._numberOfAnimals == 0) {
-            for (let i = 0; i < this.initialNumberOfAnimals; i++) {
-                this.addNewRandomAnimal();
+        let probOfNewTree = Math.min(0.1, timePassed / 1000 * World.treesGrowthRate);
+        for (let t: ListNode<Tree> = this.trees; t != null; t = t.next) { //more trees - more iterations - higher chance of a new tree
+            if (this.numberOfTrees >= this.maxNumberOfTrees) {
+                break;
+            }
+            if (Math.random() < probOfNewTree) {
+                this.addNewRandomTree();
             }
         }
     }

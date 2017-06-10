@@ -79,7 +79,7 @@ export class Net {
     readonly layersSizes: number[];
 
     private static defaultMutation(x: number): number {
-        return (Math.random() * 2 - 1) / (Math.abs(x)+1);
+        return (Math.random() * 2 - 1) / (Math.abs(x)+2);
     }
 
     produceNetWithRandomCahanges(chanceOfMutation: number, mutation: (x: number) => number = Net.defaultMutation): Net {
