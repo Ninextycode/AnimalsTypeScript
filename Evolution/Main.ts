@@ -1,36 +1,64 @@
 ﻿import { World, Tree, Animal, Vector2 } from "./Entities"
 import { Net, Matrix } from "./Net"
 import * as $ from "jquery"
+
+
+var mainWorld: World;
+var demoWorld: World;
+
+
 window.onload = () => {
-    let canvas: HTMLCanvasElement = <HTMLCanvasElement>document.getElementById("mainCanvas");
-    let width: number = 400;
-    let height: number = 400;
-    let scale: number = Math.min(canvas.width / width, canvas.height / height);
+    let canvasMain: HTMLCanvasElement = <HTMLCanvasElement>document.getElementById("mainCanvas");
+    let canvasDemo: HTMLCanvasElement = <HTMLCanvasElement>document.getElementById("demoCanvas");
+
+    let widthMain: number = 400;
+    let heightMain: number =250;
+    let widthDemo: number = 100;
+    let heightDemo: number = 100;
+
+
+    let scaleMain: number = Math.min(canvasMain.width / widthMain, canvasMain.height / heightMain);
+    let scaleDemo: number = Math.min(canvasDemo.width / widthDemo, canvasDemo.height / heightDemo);
 
     let maxTrees: number = 400;
     let initialPopulation: number = 20;
 
-    let world: World = new World(canvas.getContext("2d"), width, height, maxTrees, initialPopulation, scale);
+    mainWorld = new World(canvasMain.getContext("2d"), widthMain, heightMain, maxTrees, initialPopulation, scaleMain);
+    demoWorld = new World(canvasDemo.getContext("2d"), widthDemo, heightDemo, 0, 0, scaleDemo);
 
-    addSummary(world);
-    addFieldOfViewDrawControl();
-    addSpeedControl(world);
-    addMainCanvasListener(scale)
 
-    world.start();
+    
+    addMainControls(scaleMain)
+    addDemoControls(scaleDemo);
+    mainWorld.start();
+    demoWorld.clearCanvas();
 }
 
-function addSummary(world: World): void {
+function addMainControls(scale: number) {
+    addSummary();
+    addFieldOfViewDrawControl();
+    addSpeedControl($("#mainSpeed"), $("#mainSpeedLabel"), mainWorld);
+    addMainCanvasListener(scale);
+}
+
+function addDemoControls(scale: number) {
+    addDemoCanvasListener(scale);
+    addStartDemoButton();
+    addSpeedControl($("#demoSpeed"), $("#demoSpeedLabel"), demoWorld);
+    addClearDemoButton();
+    addRemoveAnimalDemoButton();
+}
+
+
+function addSummary(): void {
     let summary: JQuery = $("#summary");
     let writeSummary = (w: World) => {
         summary.text("Trees: " + w.numberOfTrees + ", Animals: " + w.numberOfAnimals);
     };
-    world.addUpdateListener(writeSummary);
+    mainWorld.addUpdateListener(writeSummary);
 }
 
-function addSpeedControl(world: World): void {
-    let speedSlider: JQuery = $("#speed");
-    let speedLabel: JQuery = $("#speedLabel");
+function addSpeedControl(speedSlider: JQuery, speedLabel: JQuery, world: World): void {
     speedSlider.val(world.speed);
     speedLabel.text(speedSlider.val());
     speedSlider.on('input change', (event: JQueryEventObject) => {
@@ -49,12 +77,76 @@ function addFieldOfViewDrawControl(): void {
 
 function addMainCanvasListener(scale: number): void {
     let canvas: JQuery = $("#mainCanvas");
-    let canoffset: JQueryCoordinates = canvas.offset();
-    canvas.click((event: JQueryEventObject) => {
-        let x: number = event.clientX + document.body.scrollLeft + document.documentElement.scrollLeft - Math.floor(canoffset.left);
-        x = x / scale;
-        let y: number = event.clientY + document.body.scrollTop + document.documentElement.scrollTop - Math.floor(canoffset.top) + 1;
-        y = y / scale;
-        alert(x + " " + y)
+    let offset: JQueryCoordinates = canvas.offset();
+    canvas.mousedown((event: JQueryEventObject) => {
+        let p: Vector2 = getCoordinatesOfClick(canvas, event, scale);
+        let a: Animal = mainWorld.getCopyOfAnimalAt(p);
+        if (a == null) {
+            return;
+        }
+        setupDemonstrationWorld(a);
+    });
+}
+
+function setupDemonstrationWorld(animalToDemo: Animal) {
+    animalToDemo.ableToDie = false;
+    animalToDemo.ableToGiveBirth = false;
+    animalToDemo.position = Vector2.fromCartesian(demoWorld.width / 2, 5);
+    animalToDemo.angle = Math.PI / 2;
+    demoWorld.clearFromAnimals();
+    demoWorld.addObject(animalToDemo);
+}
+
+function addDemoCanvasListener(scale: number): void {
+    let canvas: JQuery = $("#demoCanvas");
+
+    let offset: JQueryCoordinates = canvas.offset();
+    canvas.mousedown((event: JQueryEventObject) => {
+        let p: Vector2 = getCoordinatesOfClick(canvas, event, scale);
+        let t: Tree = new Tree(p);
+        demoWorld.addObject(t);
+    });
+}
+
+function getCoordinatesOfClick(canvas: JQuery, event: JQueryEventObject, scale: number): Vector2 {
+    let x: number = 0;
+    let y: number = 0;
+
+    if (event.pageX || event.pageY) {
+        x = event.pageX;
+        y = event.pageY;
+    }
+    else {
+        x = event.clientX + document.body.scrollLeft + document.documentElement.scrollLeft;
+        y = event.clientY + document.body.scrollTop + document.documentElement.scrollTop;
+    }
+    x -= canvas.offset().left;
+    y -= canvas.offset().top;
+
+    x = x / scale;
+    y = y / scale;
+
+    return Vector2.fromCartesian(x, y);
+} 
+
+function addStartDemoButton() {
+    let btn: JQuery = $("#startDemoButton");
+    btn.click((event: JQueryEventObject) => {
+        demoWorld.running ? demoWorld.stop() : demoWorld.start();
+        btn.text((demoWorld.running ? "Stop" : "Start") + " demo");
+    });
+}
+
+function addClearDemoButton() {
+    let btn: JQuery = $("#cleanDemoButton");
+    btn.click((event: JQueryEventObject) => {
+        demoWorld.clearFromTrees();
+    });
+}
+
+function addRemoveAnimalDemoButton() {
+    let btn: JQuery = $("#removeDemoAnimalButton");
+    btn.click((event: JQueryEventObject) => {
+        demoWorld.clearFromAnimals();
     });
 }

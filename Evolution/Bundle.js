@@ -63,6 +63,9 @@ var Circle = (function () {
     Circle.prototype.isIntersecting = function (c) {
         return (this.position.scale(-1).add(c.position).r < c.radius + this.radius);
     };
+    Circle.prototype.containsPoint = function (point) {
+        return this.isIntersecting(new Circle(point, 0));
+    };
     Circle.prototype.toString = function () {
         return "Circle at " + this.position + " ,radius=" + this.radius;
     };
@@ -94,26 +97,53 @@ Tree.initialEnergy = 0.5;
 Tree.radius = 1;
 exports.Tree = Tree;
 var Animal = (function () {
-    function Animal(position, net, angle) {
-        if (angle === void 0) { angle = 0; }
-        this.position = position;
+    function Animal(_position, net, _angle) {
+        if (_angle === void 0) { _angle = 0; }
+        this._position = _position;
         this.net = net;
-        this.angle = angle;
+        this._angle = _angle;
         // observedTrees[n * numberOfSegments + i] = how many treesin the ith segment of nth eye's fielf of view
         this.observedTrees = new Array(Animal.fieldOfViewSegments * 2);
         this.loopedValues = new Array(Animal.loopedNeuronsNumber);
-        this.eyeShift1 = Vector2.fromCartesian(Animal.bodyRadius * 0.9, 0).rotate(Math.PI / 3);
-        this.eyeShift2 = Vector2.fromCartesian(Animal.bodyRadius * 0.9, 0).rotate(-Math.PI / 3);
         this.energy = Animal.initialEnergy;
         this.speed = 0;
         this.angularSpeed = 0;
-        this.eye0 = new Circle(position.add(this.eyeShift1.rotate(angle)), Animal.eyeRadius, "#000000");
-        this.eye1 = new Circle(position.add(this.eyeShift2.rotate(angle)), Animal.eyeRadius, "#000000");
-        this._body = new Circle(position, Animal.bodyRadius, "#FF0000");
+        this.ableToGiveBirth = true;
+        this.ableToDie = true;
+        this.eye0 = new Circle(_position.add(Animal.eyeShift1.rotate(_angle)), Animal.eyeRadius, "#000000");
+        this.eye1 = new Circle(_position.add(Animal.eyeShift2.rotate(_angle)), Animal.eyeRadius, "#000000");
+        this._body = new Circle(_position, Animal.bodyRadius, "#FF0000");
         this.resetObservedTrees();
         for (var i = 0; i < Animal.loopedNeuronsNumber; i++)
             this.loopedValues[i] = 0;
     }
+    Object.defineProperty(Animal.prototype, "position", {
+        get: function () {
+            return this._position;
+        },
+        set: function (p) {
+            this._position = p;
+            this.updateElementsPosition();
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Animal.prototype, "angle", {
+        get: function () {
+            return this._angle;
+        },
+        set: function (p) {
+            this._angle = p;
+            this.updateElementsPosition();
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Animal.prototype.copy = function () {
+        var a = new Animal(this._position, this.net.copy(), this._angle);
+        a.energy = this.energy;
+        return a;
+    };
     Object.defineProperty(Animal.prototype, "body", {
         get: function () {
             return this._body;
@@ -144,8 +174,8 @@ var Animal = (function () {
             this.observedTrees[i++] = 0;
     };
     Animal.prototype.adjustPosition = function (t) {
-        this.position = this.position.add(Vector2.fromPolar(this.speed, this.angle).scale(t));
-        this.angle = (this.angle + this.angularSpeed * t) % (Math.PI * 2);
+        this._position = this._position.add(Vector2.fromPolar(this.speed, this._angle).scale(t));
+        this._angle = (this._angle + this.angularSpeed * t) % (Math.PI * 2);
     };
     Animal.prototype.adjustEnergy = function (t) {
         var spentOnRotation = Math.abs(this.angularSpeed) * 0.02 * t;
@@ -153,12 +183,12 @@ var Animal = (function () {
         this.energy -= (spentOnSpeed + spentOnRotation + Animal.energyLossPerUnitTime * t);
     };
     Animal.prototype.updateElementsPosition = function () {
-        this._body.position = this.position;
-        this._body.angle = this.angle;
-        this.eye0.position = this.position.add(this.eyeShift1.rotate(this.angle));
-        this.eye0.angle = this.angle;
-        this.eye1.position = this.position.add(this.eyeShift2.rotate(this.angle));
-        this.eye1.angle = this.angle;
+        this._body.position = this._position;
+        this._body.angle = this._angle;
+        this.eye0.position = this._position.add(Animal.eyeShift1.rotate(this._angle));
+        this.eye0.angle = this._angle;
+        this.eye1.position = this._position.add(Animal.eyeShift2.rotate(this._angle));
+        this.eye1.angle = this._angle;
     };
     Animal.prototype.draw = function (ctx, scale) {
         if (scale === void 0) { scale = 1; }
@@ -175,10 +205,10 @@ var Animal = (function () {
     Animal.prototype.drawFieldOfVied = function (ctx, position, scale) {
         if (scale === void 0) { scale = 1; }
         ctx.beginPath();
-        ctx.arc(position.x * scale, position.y * scale, Animal.fieldOfViewR * scale, this.angle - Animal.fieldOfViewAngle / 2, this.angle + Animal.fieldOfViewAngle / 2);
+        ctx.arc(position.x * scale, position.y * scale, Animal.fieldOfViewR * scale, this._angle - Animal.fieldOfViewAngle / 2, this._angle + Animal.fieldOfViewAngle / 2);
         for (var i = 0; i <= Animal.fieldOfViewSegments; i++) {
             ctx.moveTo(position.x * scale, position.y * scale);
-            var d = Vector2.fromPolar(Animal.fieldOfViewR, this.angle - Animal.fieldOfViewAngle / 2 +
+            var d = Vector2.fromPolar(Animal.fieldOfViewR, this._angle - Animal.fieldOfViewAngle / 2 +
                 Animal.fieldOfViewAngle / Animal.fieldOfViewSegments * i)
                 .add(position)
                 .scale(scale);
@@ -213,8 +243,11 @@ var Animal = (function () {
     };
     Animal.prototype.giveAncestor = function (mutationRate) {
         if (mutationRate === void 0) { mutationRate = Animal.mutationRate; }
+        if (!this.ableToGiveBirth) {
+            return null;
+        }
         var angle = 2 * Math.PI * Math.random();
-        var p = this.position.add(Vector2.unitVector.scale(3 * Animal.bodyRadius).rotate(angle));
+        var p = this._position.add(Vector2.unitVector.scale(3 * Animal.bodyRadius).rotate(angle));
         var ancestor = new Animal(p, this.net.produceNetWithRandomCahanges(mutationRate), angle);
         this.energy = this.energy - ancestor.energy;
         return ancestor;
@@ -226,18 +259,20 @@ Animal.bodyRadius = 3;
 Animal.fieldOfViewAngle = Math.PI / 4;
 Animal.fieldOfViewR = 80;
 Animal.fieldOfViewSegments = 4;
-Animal.drawFieldOfView = false;
 Animal.loopedNeuronsNumber = 2 + 2; // 2 for speed and angularSpeed
+Animal.mutationRate = 0.05;
+Animal.speedScale = 0.05;
+Animal.angleSpeedScale = 0.005;
+Animal.eyeShift1 = Vector2.fromCartesian(Animal.bodyRadius * 0.9, 0).rotate(Math.PI / 3);
+Animal.eyeShift2 = Vector2.fromCartesian(Animal.bodyRadius * 0.9, 0).rotate(-Math.PI / 3);
 Animal.netLayersLength = [
     Animal.fieldOfViewSegments * 2 + Animal.loopedNeuronsNumber + 1 + 1,
     Animal.fieldOfViewSegments * 2 + Animal.loopedNeuronsNumber + 1,
     Animal.loopedNeuronsNumber
 ];
+Animal.drawFieldOfView = false;
 Animal.initialEnergy = 2;
-Animal.speedScale = 0.05;
-Animal.angleSpeedScale = 0.005;
 Animal.energyLossPerUnitTime = 0.05 / 1000;
-Animal.mutationRate = 0.05;
 exports.Animal = Animal;
 var World = (function () {
     function World(context, width, height, maxNumberOfTrees, initialNumberOfAnimals, scale) {
@@ -258,6 +293,8 @@ var World = (function () {
         this._numberOfAnimals = 0;
         this._numberOfTrees = 0;
         this.minNimberOfTrees = 1;
+        this._running = false;
+        this.stopFlag = false;
         this.spawnAnimals();
         this.spawnTrees();
         this.minNimberOfTrees = maxNumberOfTrees / 6;
@@ -280,6 +317,9 @@ var World = (function () {
         configurable: true
     });
     World.prototype.addObject = function (object) {
+        if (object == null) {
+            return;
+        }
         if (object instanceof Animal) {
             this._numberOfAnimals++;
             if (this.animals == null) {
@@ -324,7 +364,17 @@ var World = (function () {
                 }
             }
         }
+        if ("draw" in object) {
+            this.draw();
+        }
     };
+    Object.defineProperty(World.prototype, "running", {
+        get: function () {
+            return this._running;
+        },
+        enumerable: true,
+        configurable: true
+    });
     World.prototype.spawnAnimals = function () {
         for (var i = this.numberOfAnimals; i < this.initialNumberOfAnimals; i++) {
             this.addNewRandomAnimal();
@@ -354,7 +404,13 @@ var World = (function () {
     };
     World.prototype.start = function () {
         var _this = this;
+        this.lastTimeReturned = null;
         window.requestAnimationFrame(function () { _this.update(); });
+        this._running = true;
+    };
+    World.prototype.stop = function () {
+        this.stopFlag = true;
+        this._running = false;
     };
     World.prototype.update = function () {
         var _this = this;
@@ -364,30 +420,36 @@ var World = (function () {
             var listener = _a[_i];
             listener(this);
         }
-        window.requestAnimationFrame(function () { _this.update(); });
+        if (!this.stopFlag) {
+            window.requestAnimationFrame(function () { _this.update(); });
+        }
+        else {
+            this.stopFlag = false;
+        }
     };
     World.prototype.updateGivenTimePassed = function (time) {
-        this.clear();
         this.updateNatire(time);
+        this.updateUpdatables(time);
+        this.draw();
+    };
+    World.prototype.draw = function () {
+        this.clearCanvas();
+        if (!this.shouldDraw) {
+            return;
+        }
         for (var a = this.animals; a != null; a = a.next) {
-            this.updateUpdatable(a.data, time);
-            if (this.shouldDraw) {
-                a.data.draw(this.context, this.scale);
-            }
+            a.data.draw(this.context, this.scale);
         }
-        if (this.shouldDraw) {
-            for (var t = this.trees; t != null; t = t.next) {
-                t.data.draw(this.context, this.scale);
-            }
-            for (var d = this.drawables; d != null; d = d.next) {
-                d.data.draw(this.context, this.scale);
-            }
-        }
-        for (var u = this.updatables; u != null; u = u.next) {
-            this.updateUpdatable(u.data, time);
+        for (var t = this.trees; t != null; t = t.next) {
+            t.data.draw(this.context, this.scale);
         }
         for (var d = this.drawables; d != null; d = d.next) {
             d.data.draw(this.context, this.scale);
+        }
+    };
+    World.prototype.updateUpdatables = function (time) {
+        for (var u = this.updatables; u != null; u = u.next) {
+            this.updateUpdatable(u.data, time);
         }
     };
     World.prototype.updateUpdatable = function (u, time) {
@@ -396,21 +458,27 @@ var World = (function () {
     };
     World.prototype.adjustPosition = function (p) {
         if (p.position.x < 0) {
-            p.position.x = 0;
+            p.position = Vector2.fromCartesian(0, p.position.y);
         }
         else if (p.position.x > this.width) {
-            p.position.x = this.width;
+            p.position = Vector2.fromCartesian(this.width, p.position.y);
         }
         if (p.position.y < 0) {
-            p.position.y = 0;
+            p.position = Vector2.fromCartesian(p.position.x, 0);
         }
         else if (p.position.y > this.height) {
-            p.position.y = this.height;
+            p.position = Vector2.fromCartesian(p.position.x, this.height);
         }
     };
     World.prototype.updateNatire = function (time) {
+        this.updateAnimals(time);
         this.updateOnCollisions();
         this.spawnAdditionalEntities(time);
+    };
+    World.prototype.updateAnimals = function (time) {
+        for (var a = this.animals; a != null; a = a.next) {
+            this.updateUpdatable(a.data, time);
+        }
     };
     World.prototype.updateOnCollisions = function () {
         for (var a = this.animals; a != null; a = a.next) {
@@ -421,7 +489,7 @@ var World = (function () {
                     this.removeTreeNode(t);
                 }
             }
-            if (a.data.energy < 0) {
+            if (a.data.energy < 0 && a.data.ableToDie) {
                 this.removeAnimalNode(a);
             }
             if (a.data.energy > 4 * Animal.initialEnergy) {
@@ -473,13 +541,34 @@ var World = (function () {
         }
         this._numberOfTrees--;
     };
-    World.prototype.clear = function () {
+    World.prototype.clearCanvas = function () {
         this.context.fillStyle = "#fceecf";
         this.context.fillRect(0, 0, this.context.canvas.width, this.context.canvas.height);
     };
+    World.prototype.clearFromEntities = function () {
+        this.drawables = null;
+        this.updatables = null;
+        this.draw();
+    };
+    World.prototype.clearFromAnimals = function () {
+        this.animals = null;
+        this.draw();
+    };
+    World.prototype.clearFromTrees = function () {
+        this.trees = null;
+        this.draw();
+    };
+    World.prototype.getCopyOfAnimalAt = function (positon) {
+        for (var a = this.animals; a != null; a = a.next) {
+            if (a.data.body.containsPoint(positon)) {
+                return a.data.copy();
+            }
+        }
+        return null;
+    };
     return World;
 }());
-World.treesGrowthRate = 0.05;
+World.treesGrowthRate = 0.02;
 exports.World = World;
 
 },{"./List":2,"./Net":4}],2:[function(require,module,exports){
@@ -547,30 +636,47 @@ exports.ListNode = ListNode;
 "use strict";
 var Entities_1 = require("./Entities");
 var $ = require("jquery");
+var mainWorld;
+var demoWorld;
 window.onload = function () {
-    var canvas = document.getElementById("mainCanvas");
-    var width = 400;
-    var height = 400;
-    var scale = Math.min(canvas.width / width, canvas.height / height);
+    var canvasMain = document.getElementById("mainCanvas");
+    var canvasDemo = document.getElementById("demoCanvas");
+    var widthMain = 400;
+    var heightMain = 250;
+    var widthDemo = 100;
+    var heightDemo = 100;
+    var scaleMain = Math.min(canvasMain.width / widthMain, canvasMain.height / heightMain);
+    var scaleDemo = Math.min(canvasDemo.width / widthDemo, canvasDemo.height / heightDemo);
     var maxTrees = 400;
     var initialPopulation = 20;
-    var world = new Entities_1.World(canvas.getContext("2d"), width, height, maxTrees, initialPopulation, scale);
-    addSummary(world);
-    addFieldOfViewDrawControl();
-    addSpeedControl(world);
-    addMainCanvasListener(scale);
-    world.start();
+    mainWorld = new Entities_1.World(canvasMain.getContext("2d"), widthMain, heightMain, maxTrees, initialPopulation, scaleMain);
+    demoWorld = new Entities_1.World(canvasDemo.getContext("2d"), widthDemo, heightDemo, 0, 0, scaleDemo);
+    addMainControls(scaleMain);
+    addDemoControls(scaleDemo);
+    mainWorld.start();
+    demoWorld.clearCanvas();
 };
-function addSummary(world) {
+function addMainControls(scale) {
+    addSummary();
+    addFieldOfViewDrawControl();
+    addSpeedControl($("#mainSpeed"), $("#mainSpeedLabel"), mainWorld);
+    addMainCanvasListener(scale);
+}
+function addDemoControls(scale) {
+    addDemoCanvasListener(scale);
+    addStartDemoButton();
+    addSpeedControl($("#demoSpeed"), $("#demoSpeedLabel"), demoWorld);
+    addClearDemoButton();
+    addRemoveAnimalDemoButton();
+}
+function addSummary() {
     var summary = $("#summary");
     var writeSummary = function (w) {
         summary.text("Trees: " + w.numberOfTrees + ", Animals: " + w.numberOfAnimals);
     };
-    world.addUpdateListener(writeSummary);
+    mainWorld.addUpdateListener(writeSummary);
 }
-function addSpeedControl(world) {
-    var speedSlider = $("#speed");
-    var speedLabel = $("#speedLabel");
+function addSpeedControl(speedSlider, speedLabel, world) {
     speedSlider.val(world.speed);
     speedLabel.text(speedSlider.val());
     speedSlider.on('input change', function (event) {
@@ -587,13 +693,67 @@ function addFieldOfViewDrawControl() {
 }
 function addMainCanvasListener(scale) {
     var canvas = $("#mainCanvas");
-    var canoffset = canvas.offset();
-    canvas.click(function (event) {
-        var x = event.clientX + document.body.scrollLeft + document.documentElement.scrollLeft - Math.floor(canoffset.left);
-        x = x / scale;
-        var y = event.clientY + document.body.scrollTop + document.documentElement.scrollTop - Math.floor(canoffset.top) + 1;
-        y = y / scale;
-        alert(x + " " + y);
+    var offset = canvas.offset();
+    canvas.mousedown(function (event) {
+        var p = getCoordinatesOfClick(canvas, event, scale);
+        var a = mainWorld.getCopyOfAnimalAt(p);
+        if (a == null) {
+            return;
+        }
+        setupDemonstrationWorld(a);
+    });
+}
+function setupDemonstrationWorld(animalToDemo) {
+    animalToDemo.ableToDie = false;
+    animalToDemo.ableToGiveBirth = false;
+    animalToDemo.position = Entities_1.Vector2.fromCartesian(demoWorld.width / 2, 5);
+    animalToDemo.angle = Math.PI / 2;
+    demoWorld.clearFromAnimals();
+    demoWorld.addObject(animalToDemo);
+}
+function addDemoCanvasListener(scale) {
+    var canvas = $("#demoCanvas");
+    var offset = canvas.offset();
+    canvas.mousedown(function (event) {
+        var p = getCoordinatesOfClick(canvas, event, scale);
+        var t = new Entities_1.Tree(p);
+        demoWorld.addObject(t);
+    });
+}
+function getCoordinatesOfClick(canvas, event, scale) {
+    var x = 0;
+    var y = 0;
+    if (event.pageX || event.pageY) {
+        x = event.pageX;
+        y = event.pageY;
+    }
+    else {
+        x = event.clientX + document.body.scrollLeft + document.documentElement.scrollLeft;
+        y = event.clientY + document.body.scrollTop + document.documentElement.scrollTop;
+    }
+    x -= canvas.offset().left;
+    y -= canvas.offset().top;
+    x = x / scale;
+    y = y / scale;
+    return Entities_1.Vector2.fromCartesian(x, y);
+}
+function addStartDemoButton() {
+    var btn = $("#startDemoButton");
+    btn.click(function (event) {
+        demoWorld.running ? demoWorld.stop() : demoWorld.start();
+        btn.text((demoWorld.running ? "Stop" : "Start") + " demo");
+    });
+}
+function addClearDemoButton() {
+    var btn = $("#cleanDemoButton");
+    btn.click(function (event) {
+        demoWorld.clearFromTrees();
+    });
+}
+function addRemoveAnimalDemoButton() {
+    var btn = $("#removeDemoAnimalButton");
+    btn.click(function (event) {
+        demoWorld.clearFromAnimals();
     });
 }
 
