@@ -45,12 +45,15 @@ var Vector2 = (function () {
 Vector2.unitVector = new Vector2(1, 1);
 exports.Vector2 = Vector2;
 var Circle = (function () {
-    function Circle(position, radius, color) {
+    function Circle(position, radius, angle, color) {
         if (position === void 0) { position = Vector2.fromCartesian(0, 0); }
+        if (radius === void 0) { radius = 0; }
+        if (angle === void 0) { angle = 0; }
+        if (color === void 0) { color = "0ffffff"; }
         this.position = position;
         this.radius = radius;
+        this.angle = angle;
         this.color = color;
-        this.angle = 0;
     }
     ;
     Circle.prototype.draw = function (ctx, scale) {
@@ -78,7 +81,7 @@ var Tree = (function () {
         this.position = position;
         this.angle = angle;
         this.energy = Animal.initialEnergy;
-        this._body = new Circle(position, Tree.radius, "#00CC00");
+        this._body = new Circle(position, Tree.radius, 0, "#00CC00");
     }
     Object.defineProperty(Tree.prototype, "body", {
         get: function () {
@@ -110,9 +113,10 @@ var Animal = (function () {
         this.angularSpeed = 0;
         this.ableToGiveBirth = true;
         this.ableToDie = true;
-        this.eye0 = new Circle(_position.add(Animal.eyeShift1.rotate(_angle)), Animal.eyeRadius, "#000000");
-        this.eye1 = new Circle(_position.add(Animal.eyeShift2.rotate(_angle)), Animal.eyeRadius, "#000000");
-        this._body = new Circle(_position, Animal.bodyRadius, "#FF0000");
+        this.eye0 = new Circle(_position.add(Animal.eye0Shift.rotate(_angle)), Animal.eyeRadius, Animal.eye0Rotate, "#000000");
+        this.eye1 = new Circle(_position.add(Animal.eye1Shift.rotate(_angle)), Animal.eyeRadius, Animal.eye0Rotate, "#000000");
+        this._body = new Circle(_position, Animal.bodyRadius, _angle, "#FF0000");
+        this.updateElementsPosition();
         this.resetObservedTrees();
         for (var i = 0; i < Animal.loopedNeuronsNumber; i++)
             this.loopedValues[i] = 0;
@@ -185,17 +189,18 @@ var Animal = (function () {
         this._angle = (this._angle + this.angularSpeed * t) % (Math.PI * 2);
     };
     Animal.prototype.adjustEnergy = function (t) {
-        var spentOnRotation = Math.abs(this.angularSpeed) * 0.02 * t;
+        var spentOnRotation = Math.abs(this.angularSpeed) * 0.01 * t;
         var spentOnSpeed = Math.abs(this.speed) * (this.speed > 0 ? 0.02 : 0.1) * t; //discourage negative speed
         this.energy -= (spentOnSpeed + spentOnRotation + Animal.energyLossPerUnitTime * t);
     };
     Animal.prototype.updateElementsPosition = function () {
         this._body.position = this._position;
         this._body.angle = this._angle;
-        this.eye0.position = this._position.add(Animal.eyeShift1.rotate(this._angle));
-        this.eye0.angle = this._angle;
-        this.eye1.position = this._position.add(Animal.eyeShift2.rotate(this._angle));
-        this.eye1.angle = this._angle;
+        this.eye0.position = this._position.add(Animal.eye0Shift.rotate(this._angle));
+        this.eye0.angle = this._angle + Animal.eye0Rotate;
+        this.eye1.position = this._position.add(Animal.eye1Shift.rotate(this._angle));
+        this.eye1.angle = this._angle + Animal.eye1Rotate;
+        ;
     };
     Animal.prototype.draw = function (ctx, scale) {
         if (scale === void 0) { scale = 1; }
@@ -204,20 +209,20 @@ var Animal = (function () {
         this.eye1.draw(ctx, scale);
         if (Animal.drawFieldOfView) {
             ctx.strokeStyle = "#C00000";
-            this.drawFieldOfVied(ctx, this.eye0.position, scale);
+            this.drawFieldOfVied(ctx, this.eye0, scale);
             ctx.strokeStyle = "#0000C0";
-            this.drawFieldOfVied(ctx, this.eye1.position, scale);
+            this.drawFieldOfVied(ctx, this.eye1, scale);
         }
     };
-    Animal.prototype.drawFieldOfVied = function (ctx, position, scale) {
+    Animal.prototype.drawFieldOfVied = function (ctx, eye, scale) {
         if (scale === void 0) { scale = 1; }
         ctx.beginPath();
-        ctx.arc(position.x * scale, position.y * scale, Animal.fieldOfViewR * scale, this._angle - Animal.fieldOfViewAngle / 2, this._angle + Animal.fieldOfViewAngle / 2);
+        ctx.arc(eye.position.x * scale, eye.position.y * scale, Animal.fieldOfViewR * scale, eye.angle - Animal.fieldOfViewAngle / 2, eye.angle + Animal.fieldOfViewAngle / 2);
         for (var i = 0; i <= Animal.fieldOfViewSegments; i++) {
-            ctx.moveTo(position.x * scale, position.y * scale);
-            var d = Vector2.fromPolar(Animal.fieldOfViewR, this._angle - Animal.fieldOfViewAngle / 2 +
+            ctx.moveTo(eye.position.x * scale, eye.position.y * scale);
+            var d = Vector2.fromPolar(Animal.fieldOfViewR, eye.angle - Animal.fieldOfViewAngle / 2 +
                 Animal.fieldOfViewAngle / Animal.fieldOfViewSegments * i)
-                .add(position)
+                .add(eye.position)
                 .scale(scale);
             ctx.lineTo(d.x, d.y);
         }
@@ -255,7 +260,7 @@ var Animal = (function () {
         }
         var angle = 2 * Math.PI * Math.random();
         var p = this._position.add(Vector2.unitVector.scale(3 * Animal.bodyRadius).rotate(angle));
-        var ancestor = new Animal(p, this._net.produceNetWithRandomCahanges(mutationRate), angle);
+        var ancestor = new Animal(p, this._net.produceNetWithRandomChanges(mutationRate), angle);
         this.energy = this.energy - ancestor.energy;
         return ancestor;
     };
@@ -263,15 +268,15 @@ var Animal = (function () {
 }());
 Animal.eyeRadius = 1 / 2;
 Animal.bodyRadius = 3;
-Animal.fieldOfViewAngle = Math.PI / 4;
+Animal.fieldOfViewAngle = Math.PI / 3;
 Animal.fieldOfViewR = 80;
-Animal.fieldOfViewSegments = 4;
+Animal.fieldOfViewSegments = 6;
 Animal.loopedNeuronsNumber = 2 + 2; // 2 for speed and angularSpeed
 Animal.mutationRate = 0.05;
-Animal.speedScale = 0.05;
-Animal.angleSpeedScale = 0.005;
-Animal.eyeShift1 = Vector2.fromCartesian(Animal.bodyRadius * 0.9, 0).rotate(Math.PI / 3);
-Animal.eyeShift2 = Vector2.fromCartesian(Animal.bodyRadius * 0.9, 0).rotate(-Math.PI / 3);
+Animal.eye0Shift = Vector2.fromCartesian(Animal.bodyRadius * 0.9, 0).rotate(Math.PI / 3);
+Animal.eye1Shift = Vector2.fromCartesian(Animal.bodyRadius * 0.9, 0).rotate(-Math.PI / 3);
+Animal.eye0Rotate = Math.PI / 10;
+Animal.eye1Rotate = -Math.PI / 10;
 Animal.netLayersLength = [
     Animal.fieldOfViewSegments * 2 + Animal.loopedNeuronsNumber + 1 + 1,
     Animal.fieldOfViewSegments * 2 + Animal.loopedNeuronsNumber + 1,
@@ -279,6 +284,8 @@ Animal.netLayersLength = [
 ];
 Animal.drawFieldOfView = false;
 Animal.initialEnergy = 2;
+Animal.speedScale = 0.05;
+Animal.angleSpeedScale = 0.005;
 Animal.energyLossPerUnitTime = 0.05 / 1000;
 exports.Animal = Animal;
 var World = (function () {
@@ -378,7 +385,7 @@ var World = (function () {
     World.prototype.drawNthAnimalNet = function (n, ctx) {
         for (var a = this.animals; a != null; a = a.next) {
             if (n == 0) {
-                a.data.net.drawLastInput(ctx);
+                a.data.net.drawLastInput(ctx, [" speed /" + Animal.speedScale, " angular speed /" + Animal.angleSpeedScale, " looped value", " looped value"]);
             }
             n--;
         }
@@ -660,8 +667,8 @@ window.onload = function () {
     var canvasDemo = document.getElementById("demoCanvas");
     var widthMain = 400;
     var heightMain = 250;
-    var widthDemo = 100;
-    var heightDemo = 100;
+    var widthDemo = 120;
+    var heightDemo = 120;
     var scaleMain = Math.min(canvasMain.width / widthMain, canvasMain.height / heightMain);
     var scaleDemo = Math.min(canvasDemo.width / widthDemo, canvasDemo.height / heightDemo);
     var maxTrees = 400;
@@ -696,7 +703,7 @@ function addSummary() {
 }
 function addSpeedControl(speedSlider, speedLabel, world) {
     speedSlider.val(world.speed);
-    speedSlider.change(function (event) {
+    speedSlider.on("change input", function (event) {
         speedLabel.text(speedSlider.val());
         world.speed = speedSlider.val();
     });
@@ -796,6 +803,9 @@ var Matrix = (function () {
         return new Matrix(newData);
     };
     Matrix.prototype.at = function (row, col) {
+        if ((col >= this.cols) || (row >= this.rows)) {
+            throw RangeError("(" + row + ", " + col + ") is out of range, size is (" + this.rows + ", " + this.cols + ")");
+        }
         return this.data[col][row];
     };
     Matrix.prototype.singleElementInProduct = function (m1data, m2data, col, row) {
@@ -870,9 +880,13 @@ var NetDrawWeights = (function () {
     return NetDrawWeights;
 }());
 NetDrawWeights.values = 1;
-NetDrawWeights.map = 3;
-NetDrawWeights.sigmoid = 0.5;
-NetDrawWeights.padding = 0.5;
+NetDrawWeights.map = 7;
+NetDrawWeights.sigmoid = 2.2;
+NetDrawWeights.horisontalPad = 1.5;
+NetDrawWeights.verticalPad = 0.5;
+NetDrawWeights.negativeColour = "#645bff";
+NetDrawWeights.positiveColour = "#e88b12";
+NetDrawWeights.labels = 4;
 var Net = (function () {
     //lengths of layers including bias(last layer has no bais unit)
     function Net(layersSizes, parameters, sigmoid) {
@@ -899,7 +913,7 @@ var Net = (function () {
     Net.defaultMutation = function (x) {
         return (Math.random() * 2 - 1) / (Math.abs(x) + 2);
     };
-    Net.prototype.produceNetWithRandomCahanges = function (chanceOfMutation, mutation) {
+    Net.prototype.produceNetWithRandomChanges = function (chanceOfMutation, mutation) {
         if (mutation === void 0) { mutation = Net.defaultMutation; }
         var newPar = this.parameters.slice();
         for (var i = 0; i < newPar.length; i++) {
@@ -940,7 +954,8 @@ var Net = (function () {
         }
         return temp.toArray();
     };
-    Net.prototype.drawLastInput = function (ctx) {
+    Net.prototype.drawLastInput = function (ctx, labelsForOutput) {
+        if (labelsForOutput === void 0) { labelsForOutput = []; }
         if (this.lastInput == null) {
             return;
         }
@@ -954,25 +969,46 @@ var Net = (function () {
             var m = _a[_i];
             temp.data[0].push(1); //bias
             this.drawMap(layer, unit, temp, ctx);
+            this.drawLayerValues(layer, true, unit, temp, ctx);
             temp = m.multiply(temp);
+            this.drawLayerValues(layer + 1, false, unit, temp, ctx);
             temp.apply(this.sigmoid);
             layer++;
         }
-        return;
+        this.drawLayerValues(layer, true, unit, temp, ctx);
+        this.writeLabels(labelsForOutput, unit, ctx);
+    };
+    Net.prototype.writeLabels = function (labelsForOutput, unit, ctx) {
+        var x = this.getHorisontalPaddingForLayer(this.layersSizes.length - 1, true, unit) + this.getLabelPadX(unit);
+        for (var i = 0; i < labelsForOutput.length; i++) {
+            var y = this.getVerticalPaddingForElementInLayer(this.layersSizes.length - 1, i, unit, ctx) + this.getLabelPadY(unit);
+            ctx.font = this.getLabelFont(unit);
+            ctx.fillStyle = '#000000';
+            ctx.fillText(labelsForOutput[i], x, y);
+        }
     };
     Net.prototype.computeUnit = function (ctx) {
-        var abstractHorisontalLength = NetDrawWeights.padding * 2 +
+        var abstractHorisontalLength = NetDrawWeights.labels +
+            NetDrawWeights.horisontalPad +
             (this.layersSizes.length - 1) * (NetDrawWeights.sigmoid + NetDrawWeights.map) +
             NetDrawWeights.values;
-        var abstractVerticalLength = NetDrawWeights.padding * 2 +
+        var abstractVerticalLength = NetDrawWeights.verticalPad +
             Math.max.apply(Math, this.layersSizes) * NetDrawWeights.values;
         var unit = Math.min(ctx.canvas.height / abstractVerticalLength, ctx.canvas.width / abstractHorisontalLength);
         return unit;
     };
+    Net.prototype.getLabelFont = function (unit) {
+        return 3 * Math.floor(unit * NetDrawWeights.values) / 4 + "px Arial";
+    };
+    Net.prototype.getLabelPadX = function (unit) {
+        return unit * NetDrawWeights.values * 2;
+    };
+    Net.prototype.getLabelPadY = function (unit) {
+        return unit * NetDrawWeights.values / 5;
+    };
     Net.prototype.drawMap = function (layer, unit, layerInput, ctx) {
-        var bias = (layer + 1 == this.layersSizes.length - 1) ? 0 : 1; // does the next layer include bias unit
-        for (var i = 0; i < this.layersSizes[layer + 1] - bias; i++) {
-            for (var j = 0; j < this.layersSizes[layer]; j++) {
+        for (var i = 0; i < this.transforms[layer].rows; i++) {
+            for (var j = 0; j < layerInput.rows; j++) {
                 var impactValue = this.transforms[layer].at(i, j) * layerInput.at(j, 0);
                 this.drawMapLine(layer, j, i, impactValue, unit, ctx);
             }
@@ -980,21 +1016,55 @@ var Net = (function () {
     };
     Net.prototype.drawMapLine = function (layer, from, to, impactValue, unit, ctx) {
         ctx.beginPath();
-        ctx.lineWidth = Math.abs(impactValue) * 2;
-        ctx.strokeStyle = (impactValue > 0) ? "#e88b12" : "#0f06aa";
+        ctx.lineWidth = Math.max(Math.abs(impactValue), 0.05);
+        ctx.strokeStyle =
+            (impactValue > 0) ? NetDrawWeights.positiveColour : NetDrawWeights.negativeColour; //orange/blue colour for positive/negative values
         ctx.moveTo(this.getHorisontalPaddingForLayer(layer, true, unit), this.getVerticalPaddingForElementInLayer(layer, from, unit, ctx));
         ctx.lineTo(this.getHorisontalPaddingForLayer(layer + 1, false, unit), this.getVerticalPaddingForElementInLayer(layer + 1, to, unit, ctx));
         ctx.stroke();
     };
-    Net.prototype.getHorisontalPaddingForLayer = function (n, afterSigmoid, unit) {
-        return (NetDrawWeights.padding + n * (NetDrawWeights.map + NetDrawWeights.sigmoid) +
-            (afterSigmoid ? NetDrawWeights.sigmoid : 0)) * unit;
+    Net.prototype.drawLayerValues = function (layer, afterSigmoid, unit, layerInput, ctx) {
+        for (var i = 0; i < layerInput.rows; i++) {
+            this.drawSingleValue(layer, i, layerInput.at(i, 0), afterSigmoid, unit, ctx);
+        }
+    };
+    Net.prototype.drawSingleValue = function (layer, elementNumber, value, afterSigmoid, unit, ctx) {
+        var x = this.getHorisontalPaddingForLayer(layer, afterSigmoid, unit);
+        var y = this.getVerticalPaddingForElementInLayer(layer, elementNumber, unit, ctx);
+        ctx.beginPath();
+        ctx.arc(x, y, NetDrawWeights.values / 2 * unit, 0, 2 * Math.PI, false);
+        ctx.fillStyle = "#ffffff";
+        ctx.fill();
+        ctx.arc(x, y, NetDrawWeights.values / 2 * unit, 0, 2 * Math.PI, false);
+        ctx.fillStyle = (value > 0) ? NetDrawWeights.positiveColour : NetDrawWeights.negativeColour;
+        ctx.globalAlpha = Math.abs(afterSigmoid ? value : this.sigmoid(value)) * 1.5;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = 1 / 10;
+        ctx.strokeStyle = '#000000';
+        ctx.stroke();
+        ctx.font = this.getNumberFont(unit);
+        ctx.fillStyle = '#000000';
+        ctx.fillText(value.toPrecision(2).toString().slice(0, 6), x - this.getNumberPadX(unit), y + this.getNumberPadY(unit));
+    };
+    Net.prototype.getNumberFont = function (unit) {
+        return (2 * Math.floor(unit * NetDrawWeights.values) / 3) + "px Arial";
+    };
+    Net.prototype.getNumberPadX = function (unit) {
+        return unit * NetDrawWeights.values / 2.3;
+    };
+    Net.prototype.getNumberPadY = function (unit) {
+        return unit * NetDrawWeights.values / 4.6;
+    };
+    Net.prototype.getHorisontalPaddingForLayer = function (layer, afterSigmoid, unit) {
+        return (NetDrawWeights.horisontalPad + layer * (NetDrawWeights.map + NetDrawWeights.sigmoid) +
+            (afterSigmoid ? NetDrawWeights.sigmoid : 0) - NetDrawWeights.sigmoid + NetDrawWeights.values / 2) * unit;
     };
     Net.prototype.getVerticalPaddingForElementInLayer = function (layer, elementNumber, unit, ctx) {
-        var layerVerticalLength = NetDrawWeights.values * this.layersSizes[layer] * unit;
-        var paddingToFirstElement = (ctx.canvas.height - layerVerticalLength) / 2;
+        var layerVerticalLength = (NetDrawWeights.values * this.layersSizes[layer]) * unit;
+        var paddingToFirstElement = (ctx.canvas.height - NetDrawWeights.verticalPad - layerVerticalLength) / 2;
         var paddingForElement = NetDrawWeights.values * elementNumber * unit;
-        return paddingToFirstElement + paddingForElement;
+        return paddingToFirstElement + paddingForElement + NetDrawWeights.values / 2 * unit;
     };
     Net.prototype.toString = function () {
         var s = "(\n";

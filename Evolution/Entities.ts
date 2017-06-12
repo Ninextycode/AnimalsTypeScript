@@ -46,9 +46,9 @@ interface Updatable extends Positionable {
 }
 
 export class Circle implements Drawable {
-    angle: number = 0;
+
     constructor(public position: Vector2 = Vector2.fromCartesian(0, 0),
-        public radius?: number, public color?: string) { };
+        public radius: number = 0, public angle : number = 0, public color: string = "0ffffff") { };
 
     draw(ctx: CanvasRenderingContext2D, scale: number = 1): void {
         ctx.beginPath();
@@ -75,7 +75,7 @@ export class Circle implements Drawable {
 
 export class Tree implements Drawable {
     constructor(public position: Vector2, public angle: number = 0) {
-        this._body = new Circle(position, Tree.radius, "#00CC00");
+        this._body = new Circle(position, Tree.radius, 0, "#00CC00");
     }
     _body: Circle;
     get body(): Circle {
@@ -93,19 +93,19 @@ export class Tree implements Drawable {
 export class Animal implements Updatable, Drawable {
     private static readonly eyeRadius: number = 1/2;
     private static readonly bodyRadius: number = 3;
-    private static readonly fieldOfViewAngle: number = Math.PI/4;
+    private static readonly fieldOfViewAngle: number = Math.PI / 3;
     private static readonly fieldOfViewR: number = 80;
-    private static readonly fieldOfViewSegments = 4;
+    private static readonly fieldOfViewSegments = 6;
     
     private static loopedNeuronsNumber: number = 2 + 2; // 2 for speed and angularSpeed
     private static mutationRate = 0.05;
-    private static readonly speedScale = 0.05;
-    private static readonly angleSpeedScale = 0.005;
-    private static eyeShift1: Vector2 =
-        Vector2.fromCartesian(Animal.bodyRadius * 0.9, 0).rotate(Math.PI / 3);
-    private static eyeShift2: Vector2 =
-        Vector2.fromCartesian(Animal.bodyRadius * 0.9, 0).rotate(- Math.PI / 3);
 
+    private static eye0Shift: Vector2 =
+        Vector2.fromCartesian(Animal.bodyRadius * 0.9, 0).rotate(Math.PI / 3);
+    private static eye1Shift: Vector2 =
+        Vector2.fromCartesian(Animal.bodyRadius * 0.9, 0).rotate(- Math.PI / 3);
+    private static eye0Rotate: number = Math.PI / 10;
+    private static eye1Rotate: number = - Math.PI / 10;
     static readonly netLayersLength: number[] = [
         Animal.fieldOfViewSegments * 2 + Animal.loopedNeuronsNumber + 1 + 1, //1 for randomness, 1 for bias,
         Animal.fieldOfViewSegments * 2 + Animal.loopedNeuronsNumber + 1,
@@ -113,6 +113,8 @@ export class Animal implements Updatable, Drawable {
     ];
     static drawFieldOfView: boolean = false;
     static readonly initialEnergy: number = 2;
+    static readonly speedScale = 0.05;
+    static readonly angleSpeedScale = 0.005;
 
     get position(): Vector2 {
         return this._position;
@@ -138,9 +140,11 @@ export class Animal implements Updatable, Drawable {
 
     constructor(private _position: Vector2,
         private _net: Net, private _angle: number = 0) {
-        this.eye0 = new Circle(_position.add(Animal.eyeShift1.rotate(_angle)), Animal.eyeRadius, "#000000");
-        this.eye1 = new Circle(_position.add(Animal.eyeShift2.rotate(_angle)), Animal.eyeRadius, "#000000");
-        this._body = new Circle(_position, Animal.bodyRadius, "#FF0000");
+        this.eye0 = new Circle(_position.add(Animal.eye0Shift.rotate(_angle)), Animal.eyeRadius, Animal.eye0Rotate, "#000000");
+        this.eye1 = new Circle(_position.add(Animal.eye1Shift.rotate(_angle)), Animal.eyeRadius, Animal.eye0Rotate, "#000000");
+        this._body = new Circle(_position, Animal.bodyRadius, _angle, "#FF0000");
+
+        this.updateElementsPosition();
 
         this.resetObservedTrees();
         for (let i = 0; i < Animal.loopedNeuronsNumber; i++)
@@ -207,7 +211,7 @@ export class Animal implements Updatable, Drawable {
 
     private static readonly energyLossPerUnitTime: number = 0.05 / 1000;
     private adjustEnergy(t: number): void {
-        let spentOnRotation = Math.abs(this.angularSpeed) * 0.02 * t;
+        let spentOnRotation = Math.abs(this.angularSpeed) * 0.01 * t;
         let spentOnSpeed = Math.abs(this.speed) * (this.speed > 0? 0.02 : 0.1) * t; //discourage negative speed
         this.energy -= (spentOnSpeed + spentOnRotation + Animal.energyLossPerUnitTime * t) ;
     }
@@ -215,10 +219,10 @@ export class Animal implements Updatable, Drawable {
     private updateElementsPosition(): void {
         this._body.position = this._position;
         this._body.angle = this._angle;
-        this.eye0.position = this._position.add(Animal.eyeShift1.rotate(this._angle));
-        this.eye0.angle = this._angle;
-        this.eye1.position = this._position.add(Animal.eyeShift2.rotate(this._angle));
-        this.eye1.angle = this._angle;
+        this.eye0.position = this._position.add(Animal.eye0Shift.rotate(this._angle));
+        this.eye0.angle = this._angle + Animal.eye0Rotate;
+        this.eye1.position = this._position.add(Animal.eye1Shift.rotate(this._angle));
+        this.eye1.angle = this._angle + Animal.eye1Rotate;;
     }
 
     draw(ctx: CanvasRenderingContext2D, scale: number = 1): void {
@@ -227,27 +231,27 @@ export class Animal implements Updatable, Drawable {
         this.eye1.draw(ctx, scale);
         if (Animal.drawFieldOfView) {
             ctx.strokeStyle = "#C00000"
-            this.drawFieldOfVied(ctx, this.eye0.position, scale);
+            this.drawFieldOfVied(ctx, this.eye0, scale);
             ctx.strokeStyle = "#0000C0"
-            this.drawFieldOfVied(ctx, this.eye1.position, scale);
+            this.drawFieldOfVied(ctx, this.eye1, scale);
         }
     }
 
-    private drawFieldOfVied(ctx: CanvasRenderingContext2D, position: Vector2, scale: number = 1) {
+    private drawFieldOfVied(ctx: CanvasRenderingContext2D, eye: Circle, scale: number = 1) {
         ctx.beginPath();
         ctx.arc(
-            position.x * scale,
-            position.y * scale,
+            eye.position.x * scale,
+            eye.position.y * scale,
             Animal.fieldOfViewR * scale,
-            this._angle - Animal.fieldOfViewAngle / 2,
-            this._angle + Animal.fieldOfViewAngle / 2);
+            eye.angle - Animal.fieldOfViewAngle / 2,
+            eye.angle + Animal.fieldOfViewAngle / 2);
         for (let i = 0; i <= Animal.fieldOfViewSegments; i++) {
-            ctx.moveTo(position.x * scale, position.y * scale);
+            ctx.moveTo(eye.position.x * scale, eye.position.y * scale);
             let d: Vector2 = Vector2.fromPolar(
                 Animal.fieldOfViewR,
-                this._angle - Animal.fieldOfViewAngle / 2 +
+                eye.angle - Animal.fieldOfViewAngle / 2 +
                 Animal.fieldOfViewAngle / Animal.fieldOfViewSegments * i)
-                    .add(position)
+                    .add(eye.position)
                     .scale(scale);
             ctx.lineTo(d.x, d.y);
         }
@@ -289,7 +293,7 @@ export class Animal implements Updatable, Drawable {
         }
         let angle: number = 2 * Math.PI * Math.random();
         let p: Vector2 = this._position.add(Vector2.unitVector.scale(3 * Animal.bodyRadius).rotate(angle));
-        let ancestor: Animal = new Animal(p, this._net.produceNetWithRandomCahanges(mutationRate), angle);
+        let ancestor: Animal = new Animal(p, this._net.produceNetWithRandomChanges(mutationRate), angle);
         this.energy = this.energy - ancestor.energy;
         return ancestor;
     }
@@ -385,7 +389,7 @@ export class World {
     public drawNthAnimalNet(n: number, ctx: CanvasRenderingContext2D): void {
         for (let a: ListNode<Animal> = this.animals; a != null; a = a.next) {
             if (n == 0) {
-                a.data.net.drawLastInput(ctx);
+                a.data.net.drawLastInput(ctx, [` speed /${Animal.speedScale}`, ` angular speed /${Animal.angleSpeedScale}`, " looped value", " looped value"]);
             }
             n--;
         }

@@ -13,8 +13,8 @@ window.onload = () => {
 
     let widthMain: number = 400;
     let heightMain: number =250;
-    let widthDemo: number = 100;
-    let heightDemo: number = 100;
+    let widthDemo: number = 120;
+    let heightDemo: number = 120;
 
 
     let scaleMain: number = Math.min(canvasMain.width / widthMain, canvasMain.height / heightMain);
@@ -63,7 +63,7 @@ function addSummary(): void {
 function addSpeedControl(speedSlider: JQuery, speedLabel: JQuery, world: World): void {
     speedSlider.val(world.speed);
 
-    speedSlider.change((event: JQueryEventObject) => {
+    speedSlider.on("change input", (event: JQueryEventObject) => {
         speedLabel.text(speedSlider.val());
         world.speed = speedSlider.val();
     }); 
