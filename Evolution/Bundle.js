@@ -97,10 +97,10 @@ Tree.initialEnergy = 0.5;
 Tree.radius = 1;
 exports.Tree = Tree;
 var Animal = (function () {
-    function Animal(_position, net, _angle) {
+    function Animal(_position, _net, _angle) {
         if (_angle === void 0) { _angle = 0; }
         this._position = _position;
-        this.net = net;
+        this._net = _net;
         this._angle = _angle;
         // observedTrees[n * numberOfSegments + i] = how many treesin the ith segment of nth eye's fielf of view
         this.observedTrees = new Array(Animal.fieldOfViewSegments * 2);
@@ -139,8 +139,15 @@ var Animal = (function () {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(Animal.prototype, "net", {
+        get: function () {
+            return this._net;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Animal.prototype.copy = function () {
-        var a = new Animal(this._position, this.net.copy(), this._angle);
+        var a = new Animal(this._position, this._net.copy(), this._angle);
         a.energy = this.energy;
         return a;
     };
@@ -160,7 +167,7 @@ var Animal = (function () {
     };
     Animal.prototype.ajustVelocity = function () {
         var input = this.observedTrees.concat(this.loopedValues).concat([Math.random() * 2 - 1]);
-        var out = this.net.compute(input);
+        var out = this._net.compute(input);
         this.speed = out[0] * Animal.speedScale;
         this.angularSpeed = out[1] * Animal.angleSpeedScale;
         for (var i = 0; i < this.loopedValues.length; i++) {
@@ -248,7 +255,7 @@ var Animal = (function () {
         }
         var angle = 2 * Math.PI * Math.random();
         var p = this._position.add(Vector2.unitVector.scale(3 * Animal.bodyRadius).rotate(angle));
-        var ancestor = new Animal(p, this.net.produceNetWithRandomCahanges(mutationRate), angle);
+        var ancestor = new Animal(p, this._net.produceNetWithRandomCahanges(mutationRate), angle);
         this.energy = this.energy - ancestor.energy;
         return ancestor;
     };
@@ -366,6 +373,14 @@ var World = (function () {
         }
         if ("draw" in object) {
             this.draw();
+        }
+    };
+    World.prototype.drawNthAnimalNet = function (n, ctx) {
+        for (var a = this.animals; a != null; a = a.next) {
+            if (n == 0) {
+                a.data.net.drawLastInput(ctx);
+            }
+            n--;
         }
     };
     Object.defineProperty(World.prototype, "running", {
@@ -498,11 +513,13 @@ var World = (function () {
         }
     };
     World.prototype.spawnAdditionalEntities = function (timePassed) {
-        if (this.numberOfAnimals == 1) {
-            this.spawnAnimalsFromParent(this.animals.data);
-        }
-        else if (this.numberOfAnimals == 0) {
-            this.spawnAnimals();
+        if (this.initialNumberOfAnimals > 0) {
+            if (this.initialNumberOfAnimals > 1 && this.numberOfAnimals == 1) {
+                this.spawnAnimalsFromParent(this.animals.data);
+            }
+            else if (this.numberOfAnimals == 0) {
+                this.spawnAnimals();
+            }
         }
         if (this.numberOfTrees < this.minNimberOfTrees) {
             this.addNewRandomTree();
@@ -651,10 +668,12 @@ window.onload = function () {
     var initialPopulation = 20;
     mainWorld = new Entities_1.World(canvasMain.getContext("2d"), widthMain, heightMain, maxTrees, initialPopulation, scaleMain);
     demoWorld = new Entities_1.World(canvasDemo.getContext("2d"), widthDemo, heightDemo, 0, 0, scaleDemo);
+    mainWorld.start();
+    demoWorld.start();
+    demoWorld.speed = 0;
     addMainControls(scaleMain);
     addDemoControls(scaleDemo);
-    mainWorld.start();
-    demoWorld.clearCanvas();
+    addNetDrawing();
 };
 function addMainControls(scale) {
     addSummary();
@@ -664,7 +683,6 @@ function addMainControls(scale) {
 }
 function addDemoControls(scale) {
     addDemoCanvasListener(scale);
-    addStartDemoButton();
     addSpeedControl($("#demoSpeed"), $("#demoSpeedLabel"), demoWorld);
     addClearDemoButton();
     addRemoveAnimalDemoButton();
@@ -678,11 +696,12 @@ function addSummary() {
 }
 function addSpeedControl(speedSlider, speedLabel, world) {
     speedSlider.val(world.speed);
-    speedLabel.text(speedSlider.val());
-    speedSlider.on('input change', function (event) {
+    speedSlider.change(function (event) {
         speedLabel.text(speedSlider.val());
         world.speed = speedSlider.val();
     });
+    speedLabel.text(speedSlider.val());
+    speedSlider.trigger("change");
 }
 function addFieldOfViewDrawControl() {
     var drawFieldsOfView = $("#drawFieldsOfView");
@@ -737,13 +756,6 @@ function getCoordinatesOfClick(canvas, event, scale) {
     y = y / scale;
     return Entities_1.Vector2.fromCartesian(x, y);
 }
-function addStartDemoButton() {
-    var btn = $("#startDemoButton");
-    btn.click(function (event) {
-        demoWorld.running ? demoWorld.stop() : demoWorld.start();
-        btn.text((demoWorld.running ? "Stop" : "Start") + " demo");
-    });
-}
 function addClearDemoButton() {
     var btn = $("#cleanDemoButton");
     btn.click(function (event) {
@@ -754,6 +766,12 @@ function addRemoveAnimalDemoButton() {
     var btn = $("#removeDemoAnimalButton");
     btn.click(function (event) {
         demoWorld.clearFromAnimals();
+    });
+}
+function addNetDrawing() {
+    var canvasNet = document.getElementById("netCanvas");
+    demoWorld.addUpdateListener(function (w) {
+        w.drawNthAnimalNet(0, canvasNet.getContext("2d"));
     });
 }
 
@@ -776,6 +794,9 @@ var Matrix = (function () {
             }
         }
         return new Matrix(newData);
+    };
+    Matrix.prototype.at = function (row, col) {
+        return this.data[col][row];
     };
     Matrix.prototype.singleElementInProduct = function (m1data, m2data, col, row) {
         var t = 0;
@@ -827,6 +848,9 @@ var Matrix = (function () {
         }
         return new Matrix(data);
     };
+    Matrix.prototype.copy = function () {
+        return Matrix.fromArray(this.toArray(), this.rows, this.cols);
+    };
     Matrix.prototype.toArray = function () {
         var i = 0;
         var a = Array(this.rows * this.cols);
@@ -840,6 +864,15 @@ var Matrix = (function () {
     return Matrix;
 }());
 exports.Matrix = Matrix;
+var NetDrawWeights = (function () {
+    function NetDrawWeights() {
+    }
+    return NetDrawWeights;
+}());
+NetDrawWeights.values = 1;
+NetDrawWeights.map = 3;
+NetDrawWeights.sigmoid = 0.5;
+NetDrawWeights.padding = 0.5;
 var Net = (function () {
     //lengths of layers including bias(last layer has no bais unit)
     function Net(layersSizes, parameters, sigmoid) {
@@ -848,6 +881,7 @@ var Net = (function () {
         }; }
         this.parameters = parameters;
         this.sigmoid = sigmoid;
+        this.lastInput = null;
         this.layersSizes = layersSizes.slice();
         this.transforms = new Array(layersSizes.length - 1);
         var start = 0;
@@ -897,6 +931,7 @@ var Net = (function () {
             throw new Error("Invalid inpud, length recieved, expected");
         }
         var temp = Matrix.fromArray(input, input.length, 1);
+        this.lastInput = temp.copy();
         for (var _i = 0, _a = this.transforms; _i < _a.length; _i++) {
             var m = _a[_i];
             temp.data[0].push(1); //bias
@@ -904,6 +939,62 @@ var Net = (function () {
             temp.apply(this.sigmoid);
         }
         return temp.toArray();
+    };
+    Net.prototype.drawLastInput = function (ctx) {
+        if (this.lastInput == null) {
+            return;
+        }
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        var unit = this.computeUnit(ctx);
+        var temp = this.lastInput;
+        this.lastInput = temp;
+        var layer = 0;
+        for (var _i = 0, _a = this.transforms; _i < _a.length; _i++) {
+            var m = _a[_i];
+            temp.data[0].push(1); //bias
+            this.drawMap(layer, unit, temp, ctx);
+            temp = m.multiply(temp);
+            temp.apply(this.sigmoid);
+            layer++;
+        }
+        return;
+    };
+    Net.prototype.computeUnit = function (ctx) {
+        var abstractHorisontalLength = NetDrawWeights.padding * 2 +
+            (this.layersSizes.length - 1) * (NetDrawWeights.sigmoid + NetDrawWeights.map) +
+            NetDrawWeights.values;
+        var abstractVerticalLength = NetDrawWeights.padding * 2 +
+            Math.max.apply(Math, this.layersSizes) * NetDrawWeights.values;
+        var unit = Math.min(ctx.canvas.height / abstractVerticalLength, ctx.canvas.width / abstractHorisontalLength);
+        return unit;
+    };
+    Net.prototype.drawMap = function (layer, unit, layerInput, ctx) {
+        var bias = (layer + 1 == this.layersSizes.length - 1) ? 0 : 1; // does the next layer include bias unit
+        for (var i = 0; i < this.layersSizes[layer + 1] - bias; i++) {
+            for (var j = 0; j < this.layersSizes[layer]; j++) {
+                var impactValue = this.transforms[layer].at(i, j) * layerInput.at(j, 0);
+                this.drawMapLine(layer, j, i, impactValue, unit, ctx);
+            }
+        }
+    };
+    Net.prototype.drawMapLine = function (layer, from, to, impactValue, unit, ctx) {
+        ctx.beginPath();
+        ctx.lineWidth = Math.abs(impactValue) * 2;
+        ctx.strokeStyle = (impactValue > 0) ? "#e88b12" : "#0f06aa";
+        ctx.moveTo(this.getHorisontalPaddingForLayer(layer, true, unit), this.getVerticalPaddingForElementInLayer(layer, from, unit, ctx));
+        ctx.lineTo(this.getHorisontalPaddingForLayer(layer + 1, false, unit), this.getVerticalPaddingForElementInLayer(layer + 1, to, unit, ctx));
+        ctx.stroke();
+    };
+    Net.prototype.getHorisontalPaddingForLayer = function (n, afterSigmoid, unit) {
+        return (NetDrawWeights.padding + n * (NetDrawWeights.map + NetDrawWeights.sigmoid) +
+            (afterSigmoid ? NetDrawWeights.sigmoid : 0)) * unit;
+    };
+    Net.prototype.getVerticalPaddingForElementInLayer = function (layer, elementNumber, unit, ctx) {
+        var layerVerticalLength = NetDrawWeights.values * this.layersSizes[layer] * unit;
+        var paddingToFirstElement = (ctx.canvas.height - layerVerticalLength) / 2;
+        var paddingForElement = NetDrawWeights.values * elementNumber * unit;
+        return paddingToFirstElement + paddingForElement;
     };
     Net.prototype.toString = function () {
         var s = "(\n";

@@ -28,10 +28,14 @@ window.onload = () => {
 
 
     
+
+    mainWorld.start();
+    demoWorld.start();
+    demoWorld.speed = 0;
+
     addMainControls(scaleMain)
     addDemoControls(scaleDemo);
-    mainWorld.start();
-    demoWorld.clearCanvas();
+    addNetDrawing();
 }
 
 function addMainControls(scale: number) {
@@ -43,12 +47,10 @@ function addMainControls(scale: number) {
 
 function addDemoControls(scale: number) {
     addDemoCanvasListener(scale);
-    addStartDemoButton();
     addSpeedControl($("#demoSpeed"), $("#demoSpeedLabel"), demoWorld);
     addClearDemoButton();
     addRemoveAnimalDemoButton();
 }
-
 
 function addSummary(): void {
     let summary: JQuery = $("#summary");
@@ -60,11 +62,13 @@ function addSummary(): void {
 
 function addSpeedControl(speedSlider: JQuery, speedLabel: JQuery, world: World): void {
     speedSlider.val(world.speed);
-    speedLabel.text(speedSlider.val());
-    speedSlider.on('input change', (event: JQueryEventObject) => {
+
+    speedSlider.change((event: JQueryEventObject) => {
         speedLabel.text(speedSlider.val());
         world.speed = speedSlider.val();
     }); 
+    speedLabel.text(speedSlider.val());
+    speedSlider.trigger("change");
 }
 
 function addFieldOfViewDrawControl(): void {
@@ -129,24 +133,23 @@ function getCoordinatesOfClick(canvas: JQuery, event: JQueryEventObject, scale: 
     return Vector2.fromCartesian(x, y);
 } 
 
-function addStartDemoButton() {
-    let btn: JQuery = $("#startDemoButton");
-    btn.click((event: JQueryEventObject) => {
-        demoWorld.running ? demoWorld.stop() : demoWorld.start();
-        btn.text((demoWorld.running ? "Stop" : "Start") + " demo");
-    });
-}
-
-function addClearDemoButton() {
+function addClearDemoButton(): void {
     let btn: JQuery = $("#cleanDemoButton");
     btn.click((event: JQueryEventObject) => {
         demoWorld.clearFromTrees();
     });
 }
 
-function addRemoveAnimalDemoButton() {
+function addRemoveAnimalDemoButton(): void {
     let btn: JQuery = $("#removeDemoAnimalButton");
     btn.click((event: JQueryEventObject) => {
         demoWorld.clearFromAnimals();
+    });
+}
+
+function addNetDrawing(): void{
+    let canvasNet: HTMLCanvasElement = <HTMLCanvasElement>document.getElementById("netCanvas");
+    demoWorld.addUpdateListener((w: World) => {
+        w.drawNthAnimalNet(0, canvasNet.getContext("2d"));
     });
 }

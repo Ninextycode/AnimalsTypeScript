@@ -14,6 +14,10 @@
         return new Matrix(newData);
     }
 
+    at(row: number, col: number) {
+        return this.data[col][row];
+    }
+
     private singleElementInProduct(m1data: number[][], m2data: number[][], col: number, row: number): number {
         let t = 0;
         for (let k = 0; k < m1data.length; k++) {
@@ -62,6 +66,10 @@
         return new Matrix(data);
     }
 
+    copy(): Matrix {
+        return Matrix.fromArray(this.toArray(), this.rows, this.cols);
+    }
+
     toArray(): number[] {
         let i = 0;
         let a: number[] = Array<number>(this.rows * this.cols);
@@ -72,6 +80,13 @@
         }
         return a;
     }
+}
+
+class NetDrawWeights {
+    static values: number = 1;
+    static map: number = 3;
+    static sigmoid: number = 0.5;
+    static padding: number = 0.5;
 }
 
 export class Net {
@@ -134,18 +149,90 @@ export class Net {
         return new Net(this.layersSizes, this.parameters, this.sigmoid);
     }
 
-    compute(input: number[]): number[] {
+    private lastInput: Matrix = null;
+        compute(input: number[]): number[] {
         if (input.length + 1 != this.layersSizes[0]) {
             throw new Error(`Invalid inpud, length recieved, expected`);
         }
-        let temp: Matrix = Matrix.fromArray(input, input.length, 1);
 
+        let temp: Matrix = Matrix.fromArray(input, input.length, 1);
+        this.lastInput = temp.copy();
         for (let m of this.transforms) {
             temp.data[0].push(1); //bias
             temp = m.multiply(temp);
             temp.apply(this.sigmoid);
         }
         return temp.toArray();
+    }
+
+
+    drawLastInput(ctx: CanvasRenderingContext2D): void {
+        if (this.lastInput == null) {
+            return;
+        }
+        ctx.fillStyle = "#ffffff"
+        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+        let unit: number = this.computeUnit(ctx);
+
+        let temp: Matrix = this.lastInput;
+        this.lastInput = temp;
+        let layer: number = 0;
+        for (let m of this.transforms) {
+            temp.data[0].push(1); //bias
+
+            this.drawMap(layer, unit, temp, ctx);
+            temp = m.multiply(temp);
+            temp.apply(this.sigmoid);
+            layer++;
+        }
+        return;
+    }
+
+    private computeUnit(ctx: CanvasRenderingContext2D): number {
+        let abstractHorisontalLength: number =
+            NetDrawWeights.padding * 2 +
+            (this.layersSizes.length - 1) * (NetDrawWeights.sigmoid + NetDrawWeights.map) +
+            NetDrawWeights.values;
+
+        let abstractVerticalLength: number =
+            NetDrawWeights.padding * 2 +
+            Math.max(...this.layersSizes) * NetDrawWeights.values;
+
+        let unit = Math.min(ctx.canvas.height / abstractVerticalLength, ctx.canvas.width / abstractHorisontalLength);
+        return unit;
+    }
+
+    private drawMap(layer: number, unit: number, layerInput: Matrix, ctx: CanvasRenderingContext2D) {
+        let bias = (layer + 1 == this.layersSizes.length - 1) ? 0 : 1; // does the next layer include bias unit
+        for (let i: number = 0; i < this.layersSizes[layer + 1] - bias; i++) {
+            for (let j: number = 0; j < this.layersSizes[layer]; j++) {
+                let impactValue =
+                    this.transforms[layer].at(i, j) * layerInput.at(j, 0);
+                this.drawMapLine(layer, j, i, impactValue, unit, ctx);
+            }
+        }
+    }
+
+    private drawMapLine(layer: number, from: number, to: number, impactValue: number, unit: number, ctx: CanvasRenderingContext2D) {
+        ctx.beginPath();
+        ctx.lineWidth = Math.abs(impactValue) * 2;
+        ctx.strokeStyle = (impactValue > 0) ? "#e88b12" : "#0f06aa"; //orange/blue colour for positive/negative values
+        ctx.moveTo(this.getHorisontalPaddingForLayer(layer, true, unit), this.getVerticalPaddingForElementInLayer(layer, from, unit, ctx));
+        ctx.lineTo(this.getHorisontalPaddingForLayer(layer + 1, false, unit), this.getVerticalPaddingForElementInLayer(layer + 1, to, unit, ctx));
+        ctx.stroke();
+    }
+
+    private getHorisontalPaddingForLayer(n: number, afterSigmoid: boolean, unit: number): number {
+        return (NetDrawWeights.padding + n * (NetDrawWeights.map + NetDrawWeights.sigmoid) +
+            (afterSigmoid ? NetDrawWeights.sigmoid : 0)) * unit;
+    }
+
+    private getVerticalPaddingForElementInLayer(layer: number, elementNumber: number, unit: number, ctx: CanvasRenderingContext2D): number {
+        let layerVerticalLength: number = NetDrawWeights.values * this.layersSizes[layer] * unit;
+        let paddingToFirstElement: number = (ctx.canvas.height - layerVerticalLength) / 2;
+        let paddingForElement: number = NetDrawWeights.values * elementNumber * unit;
+        return paddingToFirstElement + paddingForElement;
     }
 
     toString(): string {

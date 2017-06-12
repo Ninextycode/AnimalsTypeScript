@@ -132,8 +132,12 @@ export class Animal implements Updatable, Drawable {
         this.updateElementsPosition();
     }
 
+    get net(): Net {
+        return this._net;
+    }
+
     constructor(private _position: Vector2,
-        private net: Net, private _angle: number = 0) {
+        private _net: Net, private _angle: number = 0) {
         this.eye0 = new Circle(_position.add(Animal.eyeShift1.rotate(_angle)), Animal.eyeRadius, "#000000");
         this.eye1 = new Circle(_position.add(Animal.eyeShift2.rotate(_angle)), Animal.eyeRadius, "#000000");
         this._body = new Circle(_position, Animal.bodyRadius, "#FF0000");
@@ -161,7 +165,7 @@ export class Animal implements Updatable, Drawable {
     ableToDie: boolean = true;
 
     copy(): Animal {
-        let a: Animal = new Animal(this._position, this.net.copy(), this._angle);
+        let a: Animal = new Animal(this._position, this._net.copy(), this._angle);
         a.energy = this.energy;
         return a;
     }
@@ -181,7 +185,7 @@ export class Animal implements Updatable, Drawable {
     private ajustVelocity(): void {
         let input: number[] =
             this.observedTrees.concat(this.loopedValues).concat([Math.random() * 2 - 1]);
-        let out: number[] = this.net.compute(input);
+        let out: number[] = this._net.compute(input);
         this.speed = out[0] * Animal.speedScale;
         this.angularSpeed = out[1] * Animal.angleSpeedScale;
         for (let i = 0; i < this.loopedValues.length; i++) {
@@ -285,7 +289,7 @@ export class Animal implements Updatable, Drawable {
         }
         let angle: number = 2 * Math.PI * Math.random();
         let p: Vector2 = this._position.add(Vector2.unitVector.scale(3 * Animal.bodyRadius).rotate(angle));
-        let ancestor: Animal = new Animal(p, this.net.produceNetWithRandomCahanges(mutationRate), angle);
+        let ancestor: Animal = new Animal(p, this._net.produceNetWithRandomCahanges(mutationRate), angle);
         this.energy = this.energy - ancestor.energy;
         return ancestor;
     }
@@ -378,7 +382,17 @@ export class World {
         this.minNimberOfTrees = maxNumberOfTrees / 6;
     }
 
+    public drawNthAnimalNet(n: number, ctx: CanvasRenderingContext2D): void {
+        for (let a: ListNode<Animal> = this.animals; a != null; a = a.next) {
+            if (n == 0) {
+                a.data.net.drawLastInput(ctx);
+            }
+            n--;
+        }
+    }
+
     private _running: boolean = false;
+
     get running() {
         return this._running;
     }
@@ -427,7 +441,6 @@ export class World {
         this.stopFlag = true;
         this._running = false;
     }
-
 
     private update(): void{
         let t: number = this.timePassed();
@@ -495,6 +508,7 @@ export class World {
     private updateNatire(time: number): void {
         this.updateAnimals(time);
         this.updateOnCollisions();
+        
         this.spawnAdditionalEntities(time);
     }
 
@@ -526,10 +540,12 @@ export class World {
     private static treesGrowthRate: number = 0.02;
 
     private spawnAdditionalEntities(timePassed: number) {
-        if (this.numberOfAnimals == 1) {
-            this.spawnAnimalsFromParent(this.animals.data);
-        } else if (this.numberOfAnimals == 0) {
-            this.spawnAnimals();
+        if (this.initialNumberOfAnimals > 0) {
+            if(this.initialNumberOfAnimals > 1 && this.numberOfAnimals == 1) {
+                this.spawnAnimalsFromParent(this.animals.data);
+            } else if (this.numberOfAnimals == 0) {
+                this.spawnAnimals();
+            }
         }
         if (this.numberOfTrees < this.minNimberOfTrees) {
             this.addNewRandomTree();
