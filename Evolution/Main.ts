@@ -2,6 +2,8 @@
 import { Net, Matrix } from "./Net"
 import * as $ from "jquery"
 
+//for bootstrap
+(<any>window).jQuery = (<any>window).$ = require('jquery');
 
 var mainWorld: World;
 var demoWorld: World;
@@ -35,6 +37,7 @@ window.onload = () => {
 
     addMainControls(scaleMain)
     addDemoControls(scaleDemo);
+
     addNetDrawing();
 }
 
@@ -149,7 +152,11 @@ function addRemoveAnimalDemoButton(): void {
 
 function addNetDrawing(): void{
     let canvasNet: HTMLCanvasElement = <HTMLCanvasElement>document.getElementById("netCanvas");
+    let ctx: CanvasRenderingContext2D = canvasNet.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvasNet.width, canvasNet.height);
+
     demoWorld.addUpdateListener((w: World) => {
-        w.drawNthAnimalNet(0, canvasNet.getContext("2d"));
+        w.drawNthAnimalNet(0, ctx);
     });
 }

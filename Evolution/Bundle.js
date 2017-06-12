@@ -660,6 +660,8 @@ exports.ListNode = ListNode;
 "use strict";
 var Entities_1 = require("./Entities");
 var $ = require("jquery");
+//for bootstrap
+window.jQuery = window.$ = require('jquery');
 var mainWorld;
 var demoWorld;
 window.onload = function () {
@@ -777,8 +779,11 @@ function addRemoveAnimalDemoButton() {
 }
 function addNetDrawing() {
     var canvasNet = document.getElementById("netCanvas");
+    var ctx = canvasNet.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvasNet.width, canvasNet.height);
     demoWorld.addUpdateListener(function (w) {
-        w.drawNthAnimalNet(0, canvasNet.getContext("2d"));
+        w.drawNthAnimalNet(0, ctx);
     });
 }
 
